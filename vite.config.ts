@@ -31,7 +31,7 @@ export default defineConfig(({ isPreview }) => ({
     pgliteBootstrapPlugin(),
     tailwindcss(),
     tanstackStart(),
-    ...(isPreview ? [nitro({ preset: "vercel" })] : []),
+    nitro({ preset: "vercel" }),
     viteReact(),
   ],
 }));
