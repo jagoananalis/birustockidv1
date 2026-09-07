@@ -1,26 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  deleteAnalisis,
-  deleteEdukasi,
-  founderLogin,
-  founderPing,
-  listAnalisisStudio,
-  listEdukasi,
-  type Accent,
-  type AnalisisItem,
-  type AnalisisStatus,
-  type EdukasiItem,
-  type EduLevel,
-  saveAnalisis,
-  saveEdukasi,
-} from "@/lib/content";
-import { deleteNews, listNews, saveNews, type NewsItem, type NewsThumb } from "@/lib/news";
-import { formatIdDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
-import {
   Archive,
-  ArrowLeft,
   BarChart3,
   Bell,
   BookOpen,
@@ -28,14 +9,13 @@ import {
   ChevronDown,
   ChevronRight,
   CircleHelp,
-  Clock3,
   FileText,
   LayoutDashboard,
   LogOut,
   Menu,
   MoreHorizontal,
   Newspaper,
-  PenLine,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -44,6 +24,24 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import {
+  deleteAnalisis,
+  deleteEdukasi,
+  founderLogin,
+  founderPing,
+  listAnalisisStudio,
+  listEdukasi,
+  saveAnalisis,
+  saveEdukasi,
+  type Accent,
+  type AnalisisItem,
+  type AnalisisStatus,
+  type EdukasiItem,
+  type EduLevel,
+} from "@/lib/content";
+import { deleteNews, listNews, saveNews, type NewsItem, type NewsThumb } from "@/lib/news";
+import { formatIdDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/studio")({
   component: StudioPage,
@@ -52,35 +50,36 @@ export const Route = createFileRoute("/studio")({
 
 const TOKEN_KEY = "bs-producer-token";
 const PUBLIC_SITE_URL = import.meta.env.VITE_PUBLIC_SITE_URL || "http://localhost:8080";
-type Tab = "dashboard" | "analisis" | "news" | "edukasi";
 
-const STATUS_META: Record<AnalisisStatus, { label: string; className: string; dot: string }> = {
-  DRAFT: { label: "Draft", className: "badge-orange", dot: "bg-accent-orange" },
-  PUBLISHED: { label: "Published", className: "badge-green", dot: "bg-accent-green" },
-  ARCHIVED: { label: "Archived", className: "badge-red", dot: "bg-accent-red" },
+type Tab = "dashboard" | "analisis" | "news" | "edukasi" | "settings";
+
+const STATUS_META: Record<AnalisisStatus, { label: string; className: string }> = {
+  DRAFT: { label: "Draft", className: "status-draft" },
+  PUBLISHED: { label: "Published", className: "status-published" },
+  ARCHIVED: { label: "Archived", className: "status-archived" },
 };
 
-const TAB_META: Record<Tab, { label: string; caption: string; icon: ReactNode }> = {
-  dashboard: { label: "Dashboard", caption: "Overview", icon: <LayoutDashboard size={16} /> },
-  analisis: { label: "Analisis", caption: "Market content", icon: <BarChart3 size={16} /> },
-  news: { label: "News", caption: "Editorial content", icon: <Newspaper size={16} /> },
-  edukasi: { label: "Edukasi", caption: "Learning content", icon: <BookOpen size={16} /> },
-};
+const NAV_ITEMS: Array<{ key: Tab; label: string; icon: ReactNode }> = [
+  { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} /> },
+  { key: "analisis", label: "Analisis", icon: <BarChart3 size={17} /> },
+  { key: "news", label: "News", icon: <Newspaper size={17} /> },
+  { key: "edukasi", label: "Edukasi", icon: <BookOpen size={17} /> },
+];
 
 function StudioPage() {
   const [token, setToken] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [tab, setTab] = useState<Tab>("dashboard");
   const [analisis, setAnalisis] = useState<AnalisisItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [edukasi, setEdukasi] = useState<EdukasiItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  async function refresh() {
+  const refresh = async () => {
     if (!token) return;
     setLoadError("");
     const results = await Promise.allSettled([
@@ -88,17 +87,14 @@ function StudioPage() {
       listNews(),
       listEdukasi(),
     ]);
-
     if (results[0].status === "fulfilled") setAnalisis(results[0].value);
     if (results[1].status === "fulfilled") setNews(results[1].value);
     if (results[2].status === "fulfilled") setEdukasi(results[2].value);
-
-    const failures = results.filter((result) => result.status === "rejected");
-    if (failures.length) {
-      const first = failures[0];
-      setLoadError(first.status === "rejected" && first.reason instanceof Error ? first.reason.message : "Sebagian konten gagal dimuat.");
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") {
+      setLoadError(failed.reason instanceof Error ? failed.reason.message : "Sebagian konten gagal dimuat.");
     }
-  }
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
@@ -119,370 +115,297 @@ function StudioPage() {
     if (token) void refresh();
   }, [token]);
 
-  async function onLogin(e: FormEvent) {
-    e.preventDefault();
-    setError("");
+  const onLogin = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoginError("");
     setBusy(true);
     try {
       const res = await founderLogin({ data: { pin } });
       localStorage.setItem(TOKEN_KEY, res.token);
       setToken(res.token);
       setPin("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal masuk.");
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Gagal masuk.");
     } finally {
       setBusy(false);
     }
-  }
+  };
 
-  if (checking) {
-    return (
-      <section className="py-24">
-        <div className="container-site">
-          <div className="skeleton mx-auto h-28 w-full max-w-xl" />
-        </div>
-      </section>
-    );
-  }
+  const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setTab("dashboard");
+  };
 
-  if (!token) {
-    return <LoginView pin={pin} setPin={setPin} error={error} busy={busy} onLogin={onLogin} />;
-  }
+  if (checking) return <LoadingScreen />;
+  if (!token) return <LoginView pin={pin} setPin={setPin} error={loginError} busy={busy} onLogin={onLogin} />;
 
-  const pageTitle = tab === "dashboard" ? "Producer Dashboard" : TAB_META[tab].label;
-  const pageDescription = tab === "dashboard" ? "Pantau performa konten, status publikasi, dan pekerjaan terbaru dari satu ruang kerja." : TAB_META[tab].caption;
+  const counts = {
+    analisis: analisis.length,
+    published: analisis.filter((item) => item.status === "PUBLISHED").length,
+    drafts: analisis.filter((item) => item.status === "DRAFT").length,
+    archived: analisis.filter((item) => item.status === "ARCHIVED").length,
+    news: news.length,
+    edukasi: edukasi.length,
+  };
 
   return (
-    <section className="min-h-[calc(100vh-64px)] py-5 md:py-6">
-      <div className="container-site">
-        <div className="producer-layout">
-          <div className={cn("producer-sidebar-backdrop", sidebarOpen && "is-open")} onClick={() => setSidebarOpen(false)} />
-          <aside className={cn("producer-sidebar", sidebarOpen && "is-open")}>
-            <div className="producer-sidebar-head">
-              <div>
-                <p className="eyebrow">Producer</p>
-                <div className="mt-1 flex items-center gap-2 font-extrabold tracking-tight">
-                  <span className="size-2 rounded-full bg-accent-green shadow-[0_0_12px_rgb(93_204_138_/_.65)]" />
-                  Studio Birustock
-                </div>
-              </div>
-              <button type="button" className="icon-btn md:hidden" aria-label="Tutup menu" onClick={() => setSidebarOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="producer-workspace-card">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-subtle">Workspace</div>
-                  <div className="mt-1 text-sm font-bold">Birustock Production</div>
-                </div>
-                <span className="badge badge-green">Live</span>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-alt">
-                <div className="h-full w-[72%] rounded-full bg-primary" />
-              </div>
-              <div className="mt-2 flex items-center justify-between text-[11px] text-subtle">
-                <span>Content capacity</span>
-                <span>72%</span>
-              </div>
-            </div>
-
-            <nav className="grid gap-1" aria-label="Navigasi Producer">
-              {Object.entries(TAB_META).map(([key, meta]) => (
-                <StudioNavButton key={key} icon={meta.icon} active={tab === key} onClick={() => { setTab(key as Tab); setSidebarOpen(false); }}>
-                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                    <span>{meta.label}</span>
-                    {key === "analisis" && analisis.length ? <span className="nav-count">{analisis.length}</span> : null}
-                    {key === "news" && news.length ? <span className="nav-count">{news.length}</span> : null}
-                    {key === "edukasi" && edukasi.length ? <span className="nav-count">{edukasi.length}</span> : null}
-                  </span>
-                </StudioNavButton>
-              ))}
-            </nav>
-
-            <div className="mt-auto border-t border-line pt-3">
-              <a href={PUBLIC_SITE_URL} className="studio-nav-link">
-                <ArrowLeft size={16} /> Website publik
-              </a>
-              <button type="button" className="studio-nav-link mt-1 w-full text-accent-red" onClick={() => { localStorage.removeItem(TOKEN_KEY); setToken(null); }}>
-                <LogOut size={16} /> Keluar
-              </button>
-            </div>
-          </aside>
-
-          <main className="min-w-0">
-            <header className="producer-topbar">
-              <div className="flex min-w-0 items-center gap-3">
-                <button type="button" className="icon-btn md:hidden" aria-label="Buka menu" onClick={() => setSidebarOpen(true)}>
-                  <Menu size={18} />
-                </button>
-                <div className="min-w-0">
-                  <div className="hidden items-center gap-2 text-xs text-subtle sm:flex">
-                    <span>Producer</span><ChevronRight size={13} /><span>{TAB_META[tab].label}</span>
-                  </div>
-                  <div className="mt-0.5 truncate text-sm font-bold sm:text-base">{pageTitle}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="button" className="icon-btn" aria-label="Refresh data" onClick={() => void refresh()} disabled={busy}>
-                  <RefreshCw size={16} className={busy ? "animate-spin" : ""} />
-                </button>
-                <button type="button" className="icon-btn hidden sm:inline-flex" aria-label="Notifikasi"><Bell size={16} /></button>
-                <div className="producer-user-pill">
-                  <span className="producer-avatar">P</span>
-                  <span className="hidden text-xs font-semibold sm:block">Producer</span>
-                  <ChevronDown size={14} className="text-subtle" />
-                </div>
-              </div>
-            </header>
-
-            <div className="mb-5 mt-5 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="eyebrow">{tab === "dashboard" ? "Content Command Center" : `${TAB_META[tab].label} CMS`}</p>
-                <h1 className="mt-1 text-3xl font-extrabold tracking-tight md:text-4xl">{pageTitle}</h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted">{pageDescription}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {tab === "analisis" ? (
-                  <button type="button" className="btn btn-primary shadow-[0_12px_32px_rgb(142_180_255_/_.12)]" onClick={() => window.dispatchEvent(new Event("studio:new-analysis"))}>
-                    <Plus size={16} /> Analisis Baru
-                  </button>
-                ) : null}
-                {tab === "news" ? (
-                  <button type="button" className="btn btn-primary" onClick={() => window.dispatchEvent(new Event("studio:new-news"))}>
-                    <Plus size={16} /> News Baru
-                  </button>
-                ) : null}
-                {tab === "edukasi" ? (
-                  <button type="button" className="btn btn-primary" onClick={() => window.dispatchEvent(new Event("studio:new-education"))}>
-                    <Plus size={16} /> Edukasi Baru
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {loadError ? <div className="mb-4 rounded-md border border-accent-orange/30 bg-accent-orange-bg px-4 py-3 text-sm text-accent-orange">{loadError}</div> : null}
-
-            {tab === "dashboard" ? <Dashboard analisis={analisis} news={news} edukasi={edukasi} onSelect={setTab} /> : null}
-            {tab === "analisis" ? <AnalisisStudio token={token} items={analisis} onChange={refresh} busy={busy} setBusy={setBusy} /> : null}
-            {tab === "news" ? <NewsStudio token={token} items={news} onChange={refresh} busy={busy} setBusy={setBusy} /> : null}
-            {tab === "edukasi" ? <EdukasiStudio token={token} items={edukasi} onChange={refresh} busy={busy} setBusy={setBusy} /> : null}
-          </main>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function LoginView({ pin, setPin, error, busy, onLogin }: { pin: string; setPin: (v: string) => void; error: string; busy: boolean; onLogin: (e: FormEvent) => void }) {
-  return (
-    <section className="relative overflow-hidden py-16 md:py-24">
-      <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_50%_0%,rgb(142_180_255_/_0.15),transparent_60%)]" />
-      <div className="container-site relative">
-        <form onSubmit={onLogin} className="producer-login-card enter-up mx-auto max-w-md">
-          <div className="mb-7 flex items-center justify-between gap-4">
+    <div className="producer-app">
+      <div className={cn("producer-overlay", sidebarOpen && "is-open")} onClick={() => setSidebarOpen(false)} />
+      <aside className={cn("producer-sidebar", sidebarOpen && "is-open")}>
+        <div className="producer-brand-block">
+          <a href="/" className="producer-brand-lockup">
+            <img src="/logo-mark.svg" alt="Birustock" className="producer-logo" />
             <div>
-              <p className="eyebrow">Producer Studio</p>
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Kelola Birustock</h1>
+              <div className="producer-brand-name">Birustock</div>
+              <div className="producer-brand-sub">PRODUCER</div>
             </div>
-            <div className="producer-login-icon"><Sparkles size={20} /></div>
-          </div>
-          <p className="mb-7 text-sm leading-6 text-muted">Ruang kerja internal untuk membuat, menyimpan, meninjau, dan menerbitkan konten Birustock.</p>
-          {error ? <div className="mb-4 rounded-sm border border-accent-red/30 bg-accent-red-bg px-4 py-3 text-sm text-accent-red">{error}</div> : null}
-          <Field label="PIN Studio">
-            <input id="pin" type="password" className="form-field form-field-lg" value={pin} onChange={(e) => setPin(e.target.value)} autoComplete="current-password" placeholder="Masukkan PIN" required />
-          </Field>
-          <button type="submit" className="btn btn-primary btn-block mt-4 h-12" disabled={busy}>
-            {busy ? "Memeriksa…" : "Masuk ke Studio"}
+          </a>
+          <button className="mobile-close" type="button" aria-label="Tutup menu" onClick={() => setSidebarOpen(false)}>
+            <X size={17} />
           </button>
-          <div className="mt-5 flex items-center gap-2 text-xs text-subtle"><span className="size-2 rounded-full bg-accent-green" /> Akses internal Producer.</div>
-        </form>
-      </div>
-    </section>
+        </div>
+
+        <div className="producer-workspace">
+          <div className="workspace-avatar">P</div>
+          <div className="min-w-0">
+            <p className="workspace-title">Studio Birustock</p>
+            <p className="workspace-caption">Production Workspace</p>
+          </div>
+          <span className="live-dot" />
+        </div>
+
+        <nav className="producer-nav" aria-label="Navigasi Producer">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={cn("producer-nav-item", tab === item.key && "is-active")}
+              onClick={() => {
+                setTab(item.key);
+                setSidebarOpen(false);
+              }}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+              <ChevronRight size={14} className="nav-arrow" />
+            </button>
+          ))}
+        </nav>
+
+        <div className="producer-nav-divider" />
+        <button type="button" className={cn("producer-nav-item", tab === "settings" && "is-active")} onClick={() => { setTab("settings"); setSidebarOpen(false); }}>
+          <span className="nav-icon"><Settings size={17} /></span>
+          <span>Settings</span>
+          <ChevronRight size={14} className="nav-arrow" />
+        </button>
+
+        <div className="producer-sidebar-footer">
+          <div className="plan-card">
+            <div className="plan-badge"><Sparkles size={13} /> Producer Workspace</div>
+            <p>Kelola konten Birustock dari satu tempat.</p>
+            <div className="plan-meter"><span style={{ width: "72%" }} /></div>
+            <div className="plan-meta"><span>Workspace health</span><b>72%</b></div>
+          </div>
+          <a href={PUBLIC_SITE_URL} className="sidebar-footer-link"><ChevronRight size={15} /> Website publik</a>
+          <button type="button" className="sidebar-footer-link danger" onClick={logout}><LogOut size={15} /> Keluar</button>
+        </div>
+      </aside>
+
+      <main className="producer-main">
+        <header className="producer-topbar">
+          <div className="topbar-left">
+            <button type="button" className="mobile-menu" aria-label="Buka menu" onClick={() => setSidebarOpen(true)}><Menu size={18} /></button>
+            <div className="breadcrumbs">
+              <span>Producer</span><ChevronRight size={13} /><b>{tabLabel(tab)}</b>
+            </div>
+          </div>
+          <div className="topbar-right">
+            <button type="button" className="topbar-icon" aria-label="Bantuan"><CircleHelp size={17} /></button>
+            <button type="button" className="topbar-icon notification-dot" aria-label="Notifikasi"><Bell size={17} /></button>
+            <div className="profile-pill">
+              <span className="profile-avatar">P</span>
+              <span className="profile-name">Producer</span>
+              <ChevronDown size={14} />
+            </div>
+          </div>
+        </header>
+
+        {loadError ? <div className="container-wide"><div className="load-alert"><span>{loadError}</span><button type="button" onClick={() => void refresh()}>Coba lagi</button></div></div> : null}
+
+        <div className="container-wide producer-content">
+          {tab === "dashboard" ? <Dashboard counts={counts} items={analisis} onSelect={setTab} /> : null}
+          {tab === "analisis" ? <AnalisisManager token={token} items={analisis} busy={busy} setBusy={setBusy} onRefresh={refresh} /> : null}
+          {tab === "news" ? <NewsManager token={token} items={news} busy={busy} setBusy={setBusy} onRefresh={refresh} /> : null}
+          {tab === "edukasi" ? <EdukasiManager token={token} items={edukasi} busy={busy} setBusy={setBusy} onRefresh={refresh} /> : null}
+          {tab === "settings" ? <SettingsPage /> : null}
+        </div>
+      </main>
+    </div>
   );
 }
 
-function Dashboard({ analisis, news, edukasi, onSelect }: { analisis: AnalisisItem[]; news: NewsItem[]; edukasi: EdukasiItem[]; onSelect: (tab: Tab) => void }) {
-  const published = analisis.filter((item) => item.status === "PUBLISHED").length;
-  const drafts = analisis.filter((item) => item.status === "DRAFT").length;
-  const archived = analisis.filter((item) => item.status === "ARCHIVED").length;
-  const recent = [...analisis].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)).slice(0, 6);
-  const totalContent = analisis.length + news.length + edukasi.length;
+function tabLabel(tab: Tab) {
+  return { dashboard: "Dashboard", analisis: "Analisis", news: "News", edukasi: "Edukasi", settings: "Settings" }[tab];
+}
 
+function LoadingScreen() {
+  return <div className="producer-loading"><div className="loading-card"><div className="loading-logo"><img src="/logo-mark.svg" alt="" /></div><div className="skeleton-line wide" /><div className="skeleton-line" /><div className="skeleton-block" /></div></div>;
+}
+
+function LoginView({ pin, setPin, error, busy, onLogin }: { pin: string; setPin: (value: string) => void; error: string; busy: boolean; onLogin: (event: FormEvent) => void }) {
   return (
-    <div className="grid gap-5 stagger">
-      <section className="producer-hero-card">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-accent-green"><span className="size-2 rounded-full bg-accent-green" /> Sistem aktif</div>
-          <h2 className="mt-3 max-w-2xl text-2xl font-extrabold tracking-tight md:text-3xl">Semua pekerjaan editorial Birustock, dari draft sampai tayang.</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">Gunakan Producer Studio untuk menyiapkan market analysis, berita, dan materi edukasi sebelum diterbitkan ke website publik.</p>
+    <div className="producer-login">
+      <div className="producer-login-art" />
+      <div className="login-shell">
+        <div className="producer-brand-lockup login-brand">
+          <img src="/logo-mark.svg" alt="Birustock" className="producer-logo" />
+          <div><div className="producer-brand-name">Birustock</div><div className="producer-brand-sub">PRODUCER</div></div>
         </div>
-        <div className="hero-command-grid">
-          <QuickAction icon={<BarChart3 size={18} />} title="Tulis analisis" desc="Market setup & scenario" onClick={() => onSelect("analisis")} />
-          <QuickAction icon={<Newspaper size={18} />} title="Kelola news" desc="Editorial & publishing" onClick={() => onSelect("news")} />
-          <QuickAction icon={<BookOpen size={18} />} title="Susun edukasi" desc="Learning path" onClick={() => onSelect("edukasi")} />
-        </div>
-      </section>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={<FileText size={18} />} label="Total Analisis" value={analisis.length} hint="Semua status" onClick={() => onSelect("analisis")} tone="blue" />
-        <MetricCard icon={<Check size={18} />} label="Published" value={published} hint="Tayang ke user" onClick={() => onSelect("analisis")} tone="green" />
-        <MetricCard icon={<PenLine size={18} />} label="Draft" value={drafts} hint="Perlu dilanjutkan" onClick={() => onSelect("analisis")} tone="orange" />
-        <MetricCard icon={<Archive size={18} />} label="Archived" value={archived} hint="Tidak ditampilkan" onClick={() => onSelect("analisis")} tone="red" />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
-        <section className="producer-panel overflow-hidden">
-          <div className="panel-header">
-            <div><p className="text-sm font-bold">Aktivitas terbaru</p><p className="mt-1 text-xs text-subtle">Perubahan konten terakhir.</p></div>
-            <button type="button" className="btn btn-ghost !px-2" onClick={() => onSelect("analisis")}>Buka CMS <ChevronRight size={15} /></button>
-          </div>
-          <div className="divide-y divide-line">
-            {recent.length ? recent.map((item) => (
-              <button key={item.id} type="button" className="activity-row" onClick={() => onSelect("analisis")}>
-                <div className="activity-leading"><span className={cn("status-dot", STATUS_META[item.status].dot)} /><span className={cn("badge", STATUS_META[item.status].className)}>{STATUS_META[item.status].label}</span></div>
-                <div className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{item.title || "Untitled"}</p><p className="mt-1 truncate text-xs text-subtle">{item.pair} · {item.timeframe} · diperbarui {formatIdDate(item.updatedAt.slice(0, 10))}</p></div>
-                <div className="hidden items-center gap-2 text-xs text-subtle sm:flex"><span>{item.bias}</span><ChevronRight size={14} /></div>
-              </button>
-            )) : <EmptyState text="Belum ada analisis." />}
-          </div>
-        </section>
-
-        <div className="grid gap-4">
-          <section className="producer-panel p-5">
-            <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Portofolio konten</p><p className="mt-1 text-xs text-subtle">Semua channel.</p></div><span className="badge">{totalContent} items</span></div>
-            <div className="mt-5 grid gap-3">
-              <MiniMetric icon={<BarChart3 size={16} />} label="Analisis" value={analisis.length} desc={`${published} published · ${drafts} draft`} onClick={() => onSelect("analisis")} />
-              <MiniMetric icon={<Newspaper size={16} />} label="News" value={news.length} desc="Konten editorial tersimpan" onClick={() => onSelect("news")} />
-              <MiniMetric icon={<BookOpen size={16} />} label="Edukasi" value={edukasi.length} desc="Materi belajar tersimpan" onClick={() => onSelect("edukasi")} />
-            </div>
-          </section>
-          <section className="producer-panel p-5">
-            <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Workflow</p><p className="mt-1 text-xs text-subtle">Alur publikasi utama.</p></div><CircleHelp size={16} className="text-subtle" /></div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-              <WorkflowStep index="01" label="Draft" tone="orange" />
-              <WorkflowStep index="02" label="Review" tone="blue" />
-              <WorkflowStep index="03" label="Publish" tone="green" />
-            </div>
-          </section>
-        </div>
+        <form onSubmit={onLogin} className="login-card">
+          <div className="login-kicker">Producer Studio</div>
+          <h1>Selamat datang kembali.</h1>
+          <p className="login-copy">Masuk ke ruang kerja konten Birustock untuk mengelola analisis, news, dan edukasi.</p>
+          {error ? <div className="login-error">{error}</div> : null}
+          <label className="field-stack"><span>PIN Studio</span><input className="control" type="password" value={pin} onChange={(event) => setPin(event.target.value)} autoComplete="current-password" placeholder="Masukkan PIN" required /></label>
+          <button className="primary-button full" type="submit" disabled={busy}>{busy ? "Memverifikasi…" : "Masuk ke Studio"}</button>
+          <p className="login-footnote">Akses internal Producer. Jangan bagikan PIN workspace.</p>
+        </form>
       </div>
     </div>
   );
 }
 
-function QuickAction({ icon, title, desc, onClick }: { icon: ReactNode; title: string; desc: string; onClick: () => void }) {
-  return <button type="button" className="quick-action-card" onClick={onClick}><span className="icon-tile">{icon}</span><span className="min-w-0 flex-1 text-left"><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs text-subtle">{desc}</span></span><ChevronRight size={15} className="text-subtle" /></button>;
-}
+type Counts = { analisis: number; published: number; drafts: number; archived: number; news: number; edukasi: number };
 
-function MetricCard({ icon, label, value, hint, onClick, tone }: { icon: ReactNode; label: string; value: number; hint: string; onClick: () => void; tone: "blue" | "green" | "orange" | "red" }) {
-  return <button type="button" className={cn("metric-card", `metric-${tone}`)} onClick={onClick}><div className="flex items-center justify-between gap-3"><span className="rounded-sm bg-primary-soft p-2.5 text-primary">{icon}</span><ChevronRight size={15} className="text-subtle" /></div><div className="mt-5 text-3xl font-extrabold tracking-tight">{value}</div><div className="mt-1 text-sm font-semibold">{label}</div><div className="mt-1 text-xs text-subtle">{hint}</div></button>;
-}
+function Dashboard({ counts, items, onSelect }: { counts: Counts; items: AnalisisItem[]; onSelect: (tab: Tab) => void }) {
+  const recent = [...items].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)).slice(0, 5);
+  return (
+    <div className="page-stack">
+      <PageHeader eyebrow="Content Command Center" title="Dashboard" description="Pantau konten, status publikasi, dan pekerjaan terbaru dari satu ruang kerja." />
 
-function MiniMetric({ icon, label, value, desc, onClick }: { icon: ReactNode; label: string; value: number; desc: string; onClick: () => void }) {
-  return <button type="button" className="mini-metric" onClick={onClick}><span className="rounded-sm bg-bg-alt p-2 text-primary">{icon}</span><span className="min-w-0 flex-1 text-left"><span className="flex items-center justify-between gap-3"><span className="text-sm font-semibold">{label}</span><span className="text-lg font-extrabold">{value}</span></span><span className="mt-1 block truncate text-xs text-subtle">{desc}</span></span><ChevronRight size={14} className="text-subtle" /></button>;
-}
-
-function WorkflowStep({ index, label, tone }: { index: string; label: string; tone: "blue" | "green" | "orange" }) {
-  const colors = tone === "green" ? "text-accent-green" : tone === "orange" ? "text-accent-orange" : "text-accent-blue";
-  return <div className="rounded-sm border border-line bg-bg-alt px-2.5 py-3"><div className={cn("font-mono text-[10px]", colors)}>{index}</div><div className="mt-1 font-semibold">{label}</div></div>;
-}
-
-function StudioNavButton({ icon, active, children, onClick }: { icon: ReactNode; active: boolean; children: ReactNode; onClick: () => void }) {
-  return <button type="button" className={cn("studio-nav-link", active && "is-active")} onClick={onClick}>{icon}{children}</button>;
-}
-
-function ImageField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  return <div className="grid gap-3 md:grid-cols-[1fr_190px]"><div><Field label="URL gambar"><input className="form-field" value={value.startsWith("data:") ? "" : value} placeholder="https://…" onChange={(e) => onChange(e.target.value)} /></Field><label className="upload-dropzone mt-3"><input type="file" accept="image/*" className="sr-only" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 350_000) { alert("Maksimal 350KB."); return; } const reader = new FileReader(); reader.onload = () => onChange(String(reader.result ?? "")); reader.readAsDataURL(file); }} /><span className="text-xs font-semibold">Klik untuk pilih gambar</span><span className="text-[11px] text-subtle">PNG/JPG · maksimum 350KB</span></label></div><div className="cover-frame h-32 overflow-hidden rounded-md">{value ? <img src={value} alt="" className="size-full object-cover" /> : <div className="grid size-full place-items-center text-xs text-subtle">No image</div>}</div></div>;
-}
-
-function AnalisisStudio({ token, items, onChange, busy, setBusy }: { token: string; items: AnalisisItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void }) {
-  type FormState = { id?: number; pair: string; title: string; excerpt: string; body: string; imageUrl: string; accent: Accent; publishedAt: string; status: AnalisisStatus; timeframe: string; bias: "Bullish" | "Bearish" | "Netral"; support: string; resistance: string; target: string; invalidation: string; scenarioBullish: string; scenarioBearish: string };
-  const empty = useMemo<FormState>(() => ({ id: undefined, pair: "XAU/USD", title: "", excerpt: "", body: "", imageUrl: "", accent: "blue", publishedAt: new Date().toISOString().slice(0, 10), status: "DRAFT", timeframe: "H4", bias: "Bullish", support: "", resistance: "", target: "", invalidation: "", scenarioBullish: "", scenarioBearish: "" }), []);
-  const [form, setForm] = useState<FormState>(empty);
-  const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | AnalisisStatus>("ALL");
-
-  useEffect(() => { const handler = () => { setForm({ ...empty }); setError(""); }; window.addEventListener("studio:new-analysis", handler); return () => window.removeEventListener("studio:new-analysis", handler); }, [empty]);
-
-  const filtered = items.filter((item) => { const q = query.trim().toLowerCase(); const matchesQuery = !q || `${item.pair} ${item.title} ${item.bias} ${item.status}`.toLowerCase().includes(q); const matchesStatus = statusFilter === "ALL" || item.status === statusFilter; return matchesQuery && matchesStatus; });
-  const selected = form.id ? items.find((item) => item.id === form.id) : undefined;
-
-  function fill(item: AnalisisItem) { setError(""); setForm({ id: item.id, pair: item.pair, title: item.title, excerpt: item.excerpt, body: item.body, imageUrl: item.imageUrl, accent: item.accent, publishedAt: item.publishedAt, status: item.status, timeframe: item.timeframe, bias: item.bias as FormState["bias"], support: item.support, resistance: item.resistance, target: item.target, invalidation: item.invalidation, scenarioBullish: item.scenarioBullish, scenarioBearish: item.scenarioBearish }); }
-  async function submit(nextStatus: AnalisisStatus) { setError(""); setBusy(true); try { await saveAnalisis({ data: { token, ...form, status: nextStatus } }); setForm({ ...form, status: nextStatus }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } }
-  async function remove() { if (!form.id || !confirm("Hapus analisis ini secara permanen?")) return; setBusy(true); try { await deleteAnalisis({ data: { token, id: form.id } }); setForm({ ...empty }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } }
-
-  return <div className="grid gap-5 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[290px_minmax(0,1fr)_320px]">
-    <aside className="producer-panel h-fit overflow-hidden lg:sticky lg:top-24">
-      <div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Semua Analisis</p><p className="mt-1 text-xs text-subtle">{items.length} konten</p></div><button type="button" className="icon-btn" aria-label="Buat analisis" onClick={() => setForm({ ...empty })}><Plus size={16} /></button></div><label className="mt-4 flex items-center gap-2 rounded-sm border border-line bg-bg-alt px-3"><Search size={15} className="text-subtle" /><input className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari pair atau judul…" /></label><div className="mt-3 flex gap-1.5 overflow-auto pb-1"><FilterChip active={statusFilter === "ALL"} onClick={() => setStatusFilter("ALL")}>Semua</FilterChip>{(["PUBLISHED", "DRAFT", "ARCHIVED"] as AnalisisStatus[]).map((status) => <FilterChip key={status} active={statusFilter === status} onClick={() => setStatusFilter(status)}>{STATUS_META[status].label}</FilterChip>)}</div></div>
-      <div className="max-h-[680px] overflow-auto p-2">{filtered.length ? filtered.map((item) => <AnalysisListItem key={item.id} item={item} active={selected?.id === item.id} onClick={() => fill(item)} />) : <EmptyState text="Tidak ada hasil." />}</div>
-    </aside>
-
-    <form onSubmit={(e) => { e.preventDefault(); void submit(form.status); }} className="grid gap-4">
-      <section className="producer-panel overflow-hidden">
-        <div className="sticky-form-head"><div className="min-w-0"><div className="flex items-center gap-2"><span className="badge">{form.id ? `ID #${form.id}` : "Konten baru"}</span><span className={cn("badge", STATUS_META[form.status].className)}>{STATUS_META[form.status].label}</span></div><h2 className="mt-2 truncate text-xl font-extrabold">{form.title || "Buat Analisis"}</h2><p className="mt-1 text-xs text-subtle">Draft dapat diedit kapan saja sebelum dipublikasikan.</p></div><div className="flex flex-wrap items-center gap-2"><button type="button" className="btn btn-outline" disabled={busy} onClick={() => void submit("DRAFT")}>{busy ? "Menyimpan…" : "Simpan Draft"}</button><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void submit("PUBLISHED")}><Check size={15} /> Publish</button><button type="button" className="icon-btn" aria-label="Lainnya"><MoreHorizontal size={17} /></button></div></div>
+      <section className="hero-strip">
+        <div><span className="hero-label">Hari ini di Birustock</span><h2>Semua konten, satu workspace.</h2><p>Bangun, rapikan, dan terbitkan konten tanpa berpindah-pindah alat.</p></div>
+        <div className="hero-actions"><button className="secondary-button" type="button" onClick={() => onSelect("analisis")}><BarChart3 size={15} /> Kelola Analisis</button><button className="primary-button" type="button" onClick={() => onSelect("news")}><Plus size={15} /> Tulis News</button></div>
       </section>
 
-      {error ? <div className="rounded-md border border-accent-red/30 bg-accent-red-bg px-4 py-3 text-sm text-accent-red">{error}</div> : null}
+      <div className="metric-grid">
+        <MetricCard label="Total Analisis" value={counts.analisis} delta="Semua status" icon={<FileText size={17} />} onClick={() => onSelect("analisis")} />
+        <MetricCard label="Published" value={counts.published} delta="Tayang ke customer" icon={<Check size={17} />} tone="green" onClick={() => onSelect("analisis")} />
+        <MetricCard label="Draft" value={counts.drafts} delta="Perlu dilanjutkan" icon={<Pencil size={17} />} tone="orange" onClick={() => onSelect("analisis")} />
+        <MetricCard label="Archived" value={counts.archived} delta="Tidak ditampilkan" icon={<Archive size={17} />} tone="purple" onClick={() => onSelect("analisis")} />
+      </div>
 
-      <section className="producer-panel p-5"><SectionLabel icon={<BarChart3 size={15} />} title="Informasi Market" note="Identitas setup" /><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field label="Pair"><select className="form-field" value={form.pair} onChange={(e) => setForm({ ...form, pair: e.target.value })}><option>XAU/USD</option><option>BTC/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select></Field><Field label="Timeframe"><select className="form-field" value={form.timeframe} onChange={(e) => setForm({ ...form, timeframe: e.target.value })}><option>M15</option><option>H1</option><option>H4</option><option>D1</option><option>W1</option></select></Field><Field label="Bias"><select className="form-field" value={form.bias} onChange={(e) => setForm({ ...form, bias: e.target.value as FormState["bias"] })}><option>Bullish</option><option>Bearish</option><option>Netral</option></select></Field><Field label="Tanggal tayang"><input className="form-field" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} required /></Field></div></section>
+      <div className="dashboard-grid">
+        <section className="surface-card">
+          <SectionTitle title="Konten terbaru" caption="Aktivitas analisis yang terakhir diperbarui." action={<button className="text-button" type="button" onClick={() => onSelect("analisis")}>Buka CMS <ChevronRight size={14} /></button>} />
+          <div className="recent-list">
+            {recent.length ? recent.map((item) => <RecentRow key={item.id} item={item} />) : <EmptyPanel text="Belum ada analisis." />}
+          </div>
+        </section>
 
-      <section className="producer-panel p-5"><SectionLabel icon={<PenLine size={15} />} title="Market Levels" note="Level kunci setup" /><div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="Support"><input className="form-field" value={form.support} placeholder="2,380 · 2,365" onChange={(e) => setForm({ ...form, support: e.target.value })} /></Field><Field label="Resistance"><input className="form-field" value={form.resistance} placeholder="2,420 · 2,450" onChange={(e) => setForm({ ...form, resistance: e.target.value })} /></Field><Field label="Target"><input className="form-field" value={form.target} placeholder="2,520 / 2,560" onChange={(e) => setForm({ ...form, target: e.target.value })} /></Field><Field label="Invalidation"><input className="form-field" value={form.invalidation} placeholder="2,340" onChange={(e) => setForm({ ...form, invalidation: e.target.value })} /></Field></div></section>
+        <section className="surface-card status-card">
+          <SectionTitle title="Status konten" caption="Ringkasan analisis berdasarkan workflow." />
+          <div className="status-chart-wrap">
+            <div className="status-donut" style={{ background: donutGradient(counts) }}><div className="status-donut-center"><strong>{counts.analisis}</strong><span>Total</span></div></div>
+            <div className="status-legend"><LegendRow label="Published" value={counts.published} dot="green" /><LegendRow label="Draft" value={counts.drafts} dot="orange" /><LegendRow label="Archived" value={counts.archived} dot="purple" /></div>
+          </div>
+        </section>
+      </div>
 
-      <section className="producer-panel p-5"><SectionLabel icon={<FileText size={15} />} title="Konten Utama" note="Headline dan isi analisis" /><div className="mt-4 grid gap-4"><Field label="Judul"><input className="form-field form-field-lg" value={form.title} placeholder="Judul analisis yang jelas dan actionable" onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Ringkasan"><textarea className="form-field min-h-[100px]" value={form.excerpt} placeholder="Ringkasan singkat untuk card dan metadata…" onChange={(e) => setForm({ ...form, excerpt: e.target.value })} required /></Field><Field label="Isi analisis"><textarea className="form-field min-h-[260px]" value={form.body} placeholder="Tulis market commentary, konteks, dan alasan setup…" onChange={(e) => setForm({ ...form, body: e.target.value })} required /></Field></div></section>
+      <div className="quick-grid">
+        <QuickCard label="Analisis" value={counts.analisis} note="Kelola market insight" icon={<BarChart3 size={18} />} onClick={() => onSelect("analisis")} />
+        <QuickCard label="News" value={counts.news} note="Kelola berita" icon={<Newspaper size={18} />} onClick={() => onSelect("news")} />
+        <QuickCard label="Edukasi" value={counts.edukasi} note="Kelola materi belajar" icon={<BookOpen size={18} />} onClick={() => onSelect("edukasi")} />
+      </div>
+    </div>
+  );
+}
 
-      <section className="producer-panel p-5"><SectionLabel icon={<Sparkles size={15} />} title="Scenario" note="Kondisi yang mengubah bias" /><div className="mt-4 grid gap-4 md:grid-cols-2"><div className="scenario-card scenario-green"><Field label="Bullish"><textarea className="form-field min-h-[180px]" value={form.scenarioBullish} placeholder="Apa yang harus terjadi agar skenario bullish valid?" onChange={(e) => setForm({ ...form, scenarioBullish: e.target.value })} /></Field></div><div className="scenario-card scenario-red"><Field label="Bearish"><textarea className="form-field min-h-[180px]" value={form.scenarioBearish} placeholder="Apa yang membatalkan bias dan memicu skenario bearish?" onChange={(e) => setForm({ ...form, scenarioBearish: e.target.value })} /></Field></div></div></section>
+function donutGradient(c: Counts) {
+  const total = Math.max(c.analisis, 1);
+  const a = Math.round((c.published / total) * 360);
+  const b = Math.round((c.drafts / total) * 360);
+  return `conic-gradient(#246bfe 0deg ${a}deg, #ffb35c ${a}deg ${a + b}deg, #8b76ff ${a + b}deg 360deg)`;
+}
 
-      <section className="producer-panel p-5"><SectionLabel icon={<Settings size={15} />} title="Media & Pengaturan" note="Visual dan tampilan card" /><div className="mt-4 grid gap-5"><ImageField value={form.imageUrl} onChange={(imageUrl) => setForm({ ...form, imageUrl })} /><Field label="Aksen"><select className="form-field max-w-xs" value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value as Accent })}><option value="blue">Biru</option><option value="orange">Orange</option><option value="green">Hijau</option><option value="red">Merah</option></select></Field></div></section>
+function MetricCard({ label, value, delta, icon, tone = "blue", onClick }: { label: string; value: number; delta: string; icon: ReactNode; tone?: "blue" | "green" | "orange" | "purple"; onClick: () => void }) {
+  return <button className="metric-card" type="button" onClick={onClick}><div className={cn("metric-icon", `tone-${tone}`)}>{icon}</div><div className="metric-value">{value}</div><div className="metric-label">{label}</div><div className="metric-delta">{delta}</div><ChevronRight className="metric-chevron" size={16} /></button>;
+}
 
-      <div className="flex flex-wrap items-center justify-between gap-3"><button type="button" className="btn btn-danger" disabled={!form.id || busy} onClick={() => void remove()}><Trash2 size={15} /> Hapus</button><div className="flex flex-wrap gap-2"><button type="submit" className="btn btn-outline" disabled={busy}>{busy ? "Menyimpan…" : "Simpan"}</button>{form.id && selected?.slug ? <a href={`${PUBLIC_SITE_URL}/analisis/${selected.slug}`} target="_blank" rel="noreferrer" className="btn btn-primary">Lihat halaman publik <ChevronRight size={15} /></a> : null}</div></div>
-    </form>
+function RecentRow({ item }: { item: AnalisisItem }) {
+  return <div className="recent-row"><div className="thumb-sm" style={item.imageUrl ? { backgroundImage: `url(${item.imageUrl})` } : undefined}>{item.imageUrl ? null : <BarChart3 size={17} />}</div><div className="recent-main"><div className="recent-title">{item.title || "Untitled"}</div><div className="recent-meta">{item.pair} · {item.timeframe} · {formatIdDate(item.updatedAt.slice(0, 10))}</div></div><span className={cn("status-pill", STATUS_META[item.status].className)}>{STATUS_META[item.status].label}</span><MoreHorizontal size={17} className="muted-icon" /></div>;
+}
 
-    <aside className="h-fit lg:sticky lg:top-24"><LivePreview form={form} /></aside>
+function LegendRow({ label, value, dot }: { label: string; value: number; dot: string }) { return <div className="legend-row"><span className={cn("legend-dot", dot)} /> <span>{label}</span><b>{value}</b></div>; }
+function QuickCard({ label, value, note, icon, onClick }: { label: string; value: number; note: string; icon: ReactNode; onClick: () => void }) { return <button className="quick-card" type="button" onClick={onClick}><div className="quick-icon">{icon}</div><div><strong>{label}</strong><p>{value} konten · {note}</p></div><ChevronRight size={15} /></button>; }
+
+function AnalisisManager({ token, items, busy, setBusy, onRefresh }: { token: string; items: AnalisisItem[]; busy: boolean; setBusy: (value: boolean) => void; onRefresh: () => Promise<void> }) {
+  const empty = useMemo(() => ({ id: undefined as number | undefined, pair: "XAU/USD", title: "", excerpt: "", body: "", imageUrl: "", accent: "blue" as Accent, publishedAt: new Date().toISOString().slice(0, 10), status: "DRAFT" as AnalisisStatus, timeframe: "H4", bias: "Bullish" as "Bullish" | "Bearish" | "Netral", support: "", resistance: "", target: "", invalidation: "", scenarioBullish: "", scenarioBearish: "" }), []);
+  const [form, setForm] = useState(empty);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"ALL" | AnalisisStatus>("ALL");
+  const [error, setError] = useState("");
+  const selected = form.id ? items.find((item) => item.id === form.id) : undefined;
+  const filtered = items.filter((item) => (filter === "ALL" || item.status === filter) && `${item.pair} ${item.title} ${item.bias} ${item.status}`.toLowerCase().includes(query.toLowerCase()));
+
+  useEffect(() => { if (typeof window === "undefined") return; const handler = () => setForm(empty); window.addEventListener("studio:new-analysis", handler); return () => window.removeEventListener("studio:new-analysis", handler); }, [empty]);
+  const fill = (item: AnalisisItem) => setForm({ id: item.id, pair: item.pair, title: item.title, excerpt: item.excerpt, body: item.body, imageUrl: item.imageUrl, accent: item.accent, publishedAt: item.publishedAt, status: item.status, timeframe: item.timeframe, bias: item.bias as "Bullish" | "Bearish" | "Netral", support: item.support, resistance: item.resistance, target: item.target, invalidation: item.invalidation, scenarioBullish: item.scenarioBullish, scenarioBearish: item.scenarioBearish });
+  const save = async (status: AnalisisStatus) => { setError(""); setBusy(true); try { await saveAnalisis({ data: { token, ...form, status } }); await onRefresh(); setForm({ ...form, status }); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } };
+  const remove = async () => { if (!form.id || !confirm("Hapus analisis ini secara permanen?")) return; setBusy(true); try { await deleteAnalisis({ data: { token, id: form.id } }); setForm(empty); await onRefresh(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } };
+
+  return <div className="page-stack"><PageHeader eyebrow="Analisis CMS" title="Analisis" description="Kelola seluruh market insight dengan workflow draft, publish, dan archive." action={<button className="primary-button" type="button" onClick={() => setForm(empty)}><Plus size={15} /> Analisis Baru</button>} />
+    <div className="content-toolbar"><div className="search-control"><Search size={15} /><input placeholder="Cari judul, pair, atau keyword…" value={query} onChange={(e) => setQuery(e.target.value)} /></div><select className="control compact" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}><option value="ALL">Semua Status</option><option value="PUBLISHED">Published</option><option value="DRAFT">Draft</option><option value="ARCHIVED">Archived</option></select><button className="secondary-button compact-btn" type="button" onClick={() => void onRefresh()}><RefreshCw size={14} /> Refresh</button></div>
+    <div className="cms-grid analysis-grid">
+      <section className="surface-card list-card"><SectionTitle title="Semua Analisis" caption={`${filtered.length} dari ${items.length} konten`} /><div className="table-list">{filtered.length ? filtered.map((item) => <button type="button" key={item.id} className={cn("content-list-row", selected?.id === item.id && "is-selected")} onClick={() => fill(item)}><div className="thumb-sm" style={item.imageUrl ? { backgroundImage: `url(${item.imageUrl})` } : undefined}>{item.imageUrl ? null : <BarChart3 size={16} />}</div><div className="row-text"><strong>{item.title || "Untitled"}</strong><span>{item.pair} · {item.timeframe} · {formatIdDate(item.publishedAt)}</span></div><span className={cn("status-pill", STATUS_META[item.status].className)}>{STATUS_META[item.status].label}</span><ChevronRight size={15} /></button>) : <EmptyPanel text="Tidak ada hasil." />}</div></section>
+      <AnalysisEditor form={form} setForm={setForm} error={error} busy={busy} save={save} remove={remove} selected={selected} />
+      <AnalysisPreview form={form} />
+    </div>
   </div>;
 }
 
-function AnalysisListItem({ item, active, onClick }: { item: AnalisisItem; active: boolean; onClick: () => void }) {
-  return <button type="button" className={cn("analysis-list-item", active && "is-active")} onClick={onClick}><div className="analysis-thumb">{item.imageUrl ? <img src={item.imageUrl} alt="" className="size-full object-cover" /> : <BarChart3 size={16} className="text-primary" />}</div><div className="min-w-0 flex-1 text-left"><div className="flex items-center gap-2"><span className="badge">{item.pair}</span><span className={cn("badge", STATUS_META[item.status].className)}>{STATUS_META[item.status].label}</span></div><p className="mt-2 truncate text-sm font-semibold">{item.title || "Untitled"}</p><p className="mt-1 truncate text-xs text-subtle">{item.timeframe} · {item.bias} · {formatIdDate(item.publishedAt)}</p></div><ChevronRight size={14} className="shrink-0 text-subtle" /></button>;
+function AnalysisEditor({ form, setForm, error, busy, save, remove, selected }: { form: any; setForm: (value: any) => void; error: string; busy: boolean; save: (status: AnalisisStatus) => Promise<void>; remove: () => Promise<void>; selected?: AnalisisItem }) {
+  return <form className="surface-card editor-card" onSubmit={(e) => { e.preventDefault(); void save(form.status); }}><div className="editor-head"><div><span className="editor-kicker">{form.id ? "Edit konten" : "Konten baru"}</span><h2>{form.id ? form.title || "Untitled" : "Buat Analisis"}</h2></div><span className={cn("status-pill", STATUS_META[form.status as AnalisisStatus].className)}>{STATUS_META[form.status as AnalisisStatus].label}</span></div>{error ? <div className="inline-error">{error}</div> : null}<div className="editor-section"><SectionHeading>Informasi market</SectionHeading><div className="field-grid four"><Field label="Pair"><select className="control" value={form.pair} onChange={(e) => setForm({ ...form, pair: e.target.value })}><option>XAU/USD</option><option>BTC/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select></Field><Field label="Timeframe"><select className="control" value={form.timeframe} onChange={(e) => setForm({ ...form, timeframe: e.target.value })}><option>M15</option><option>H1</option><option>H4</option><option>D1</option><option>W1</option></select></Field><Field label="Bias"><select className="control" value={form.bias} onChange={(e) => setForm({ ...form, bias: e.target.value })}><option>Bullish</option><option>Bearish</option><option>Netral</option></select></Field><Field label="Tanggal tayang"><input className="control" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} /></Field></div></div>
+    <div className="editor-section"><SectionHeading>Market levels</SectionHeading><div className="field-grid four"><Field label="Support"><input className="control" value={form.support} onChange={(e) => setForm({ ...form, support: e.target.value })} placeholder="2,380 - 2,365" /></Field><Field label="Resistance"><input className="control" value={form.resistance} onChange={(e) => setForm({ ...form, resistance: e.target.value })} placeholder="2,420 - 2,450" /></Field><Field label="Target"><input className="control" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} /></Field><Field label="Invalidation"><input className="control" value={form.invalidation} onChange={(e) => setForm({ ...form, invalidation: e.target.value })} /></Field></div></div>
+    <div className="editor-section"><SectionHeading>Konten</SectionHeading><div className="field-grid"><Field label="Judul"><input className="control" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Contoh: XAU/USD - Potensi Bullish Lanjutan" required /></Field><Field label="Ringkasan"><textarea className="control textarea-sm" value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} placeholder="Ringkasan singkat yang tampil di card customer." required /></Field><Field label="Isi analisis"><textarea className="control textarea-lg" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Tulis isi analisis lengkap di sini…" required /></Field></div></div>
+    <div className="editor-section"><SectionHeading>Skenario</SectionHeading><div className="field-grid two"><Field label="Bullish scenario"><textarea className="control textarea-md" value={form.scenarioBullish} onChange={(e) => setForm({ ...form, scenarioBullish: e.target.value })} /></Field><Field label="Bearish scenario"><textarea className="control textarea-md" value={form.scenarioBearish} onChange={(e) => setForm({ ...form, scenarioBearish: e.target.value })} /></Field></div></div>
+    <div className="editor-section"><SectionHeading>Media & pengaturan</SectionHeading><div className="field-grid two"><Field label="URL gambar"><input className="control" value={form.imageUrl.startsWith("data:") ? "" : form.imageUrl} placeholder="https://…" onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} /></Field><Field label="Aksen kartu"><select className="control" value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })}><option value="blue">Blue</option><option value="orange">Orange</option><option value="green">Green</option><option value="red">Red</option></select></Field></div></div>
+    <div className="editor-footer"><div className="editor-actions-left">{form.id ? <button className="danger-button" type="button" onClick={() => void remove()} disabled={busy}><Trash2 size={14} /> Hapus</button> : null}{form.id && selected?.status === "PUBLISHED" ? <a href={`${PUBLIC_SITE_URL}/analisis/${selected.slug}`} className="secondary-button" target="_blank" rel="noreferrer">Lihat publik</a> : null}</div><div className="editor-actions-right"><button className="secondary-button" type="button" onClick={() => setForm({ ...form, status: "DRAFT" })}>Simpan Draft</button><button className="primary-button" type="button" onClick={() => void save("PUBLISHED")} disabled={busy}>{busy ? "Menyimpan…" : "Publish"}</button></div></div></form>;
 }
 
-function LivePreview({ form }: { form: { pair: string; timeframe: string; bias: string; publishedAt: string; title: string; excerpt: string; imageUrl: string; accent: Accent; support: string; resistance: string; target: string; invalidation: string; scenarioBullish: string; scenarioBearish: string } }) {
-  return <section className="producer-panel overflow-hidden"><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Live Preview</p><p className="mt-1 text-xs text-subtle">Tampilan card sebelum publish.</p></div><span className="badge">Preview</span></div></div><article className="overflow-hidden bg-bg"><div className="aspect-[16/10] bg-bg-alt">{form.imageUrl ? <img src={form.imageUrl} alt="" className="size-full object-cover" /> : <div className="grid size-full place-items-center text-xs text-subtle">No image</div>}</div><div className="space-y-4 p-4"><div className="flex items-center justify-between gap-3"><span className={cn("badge", form.accent === "orange" ? "badge-orange" : form.accent === "green" ? "badge-green" : form.accent === "red" ? "badge-red" : "")}>{form.pair || "PAIR"}</span><span className="text-[11px] text-subtle">{form.timeframe} · {form.publishedAt}</span></div><div><div className="text-[10px] font-bold uppercase tracking-[0.12em] text-subtle">{form.bias}</div><h3 className="mt-1 text-lg font-extrabold leading-tight">{form.title || "Judul analisis"}</h3><p className="mt-2 text-sm leading-6 text-muted">{form.excerpt || "Ringkasan analisis akan tampil di sini."}</p></div><div className="grid grid-cols-2 gap-2"><PreviewLevel label="Support" value={form.support} /><PreviewLevel label="Resistance" value={form.resistance} /><PreviewLevel label="Target" value={form.target} /><PreviewLevel label="Invalidation" value={form.invalidation} /></div><div className="preview-scenario preview-green"><p className="text-xs font-bold">Bullish scenario</p><p className="mt-1 whitespace-pre-line text-xs leading-5 text-muted">{form.scenarioBullish || "Belum diisi."}</p></div><div className="preview-scenario preview-red"><p className="text-xs font-bold">Bearish scenario</p><p className="mt-1 whitespace-pre-line text-xs leading-5 text-muted">{form.scenarioBearish || "Belum diisi."}</p></div></div></article></section>;
+function AnalysisPreview({ form }: { form: any }) {
+  return <aside className="surface-card preview-card"><SectionTitle title="Preview" caption="Simulasi tampilan konten customer."/><article className="preview-shell"><div className="preview-image" style={form.imageUrl ? { backgroundImage: `url(${form.imageUrl})` } : undefined}>{form.imageUrl ? null : <><BarChart3 size={25} /><span>Cover image</span></>}</div><div className="preview-body"><div className="preview-meta"><span className={cn("status-pill", `accent-${form.accent}`)}>{form.pair}</span><span>{form.timeframe} · {form.publishedAt}</span></div><div className="preview-bias">{form.bias}</div><h3>{form.title || "Judul analisis"}</h3><p>{form.excerpt || "Ringkasan analisis akan tampil di sini."}</p><div className="preview-levels"><PreviewLevel label="Support" value={form.support} /><PreviewLevel label="Resistance" value={form.resistance} /><PreviewLevel label="Target" value={form.target} /><PreviewLevel label="Invalidation" value={form.invalidation} /></div><div className="preview-scenario"><div><span>Bullish</span><p>{form.scenarioBullish || "Belum diisi."}</p></div><div><span>Bearish</span><p>{form.scenarioBearish || "Belum diisi."}</p></div></div></div></article></aside>;
 }
+function PreviewLevel({ label, value }: { label: string; value: string }) { return <div><span>{label}</span><strong>{value || "—"}</strong></div>; }
 
-function PreviewLevel({ label, value }: { label: string; value: string }) { return <div className="rounded-sm border border-line bg-bg-alt p-3"><div className="text-[10px] uppercase tracking-[0.12em] text-subtle">{label}</div><div className="mt-1 text-sm font-semibold">{value || "—"}</div></div>; }
-
-function NewsStudio({ token, items, onChange, busy, setBusy }: { token: string; items: NewsItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void }) {
+function NewsManager({ token, items, busy, setBusy, onRefresh }: { token: string; items: NewsItem[]; busy: boolean; setBusy: (value: boolean) => void; onRefresh: () => Promise<void> }) {
   const empty = useMemo(() => ({ id: undefined as number | undefined, category: "Ekonomi Global", title: "", excerpt: "", body: "", thumb: "capitol" as NewsThumb, publishedAt: new Date().toISOString().slice(0, 10) }), []);
-  const [form, setForm] = useState(empty); const [error, setError] = useState(""); const [query, setQuery] = useState("");
-  useEffect(() => { const handler = () => { setForm({ ...empty }); setError(""); }; window.addEventListener("studio:new-news", handler); return () => window.removeEventListener("studio:new-news", handler); }, [empty]);
-  async function submit(e: FormEvent) { e.preventDefault(); setError(""); setBusy(true); try { await saveNews({ data: { token, ...form } }); setForm({ ...empty }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } }
-  async function remove() { if (!form.id || !confirm("Hapus news ini secara permanen?")) return; setBusy(true); try { await deleteNews({ data: { token, id: form.id } }); setForm({ ...empty }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } }
-  const filtered = items.filter((item) => `${item.title} ${item.category}`.toLowerCase().includes(query.toLowerCase()));
-  return <div className="grid gap-5 xl:grid-cols-[290px_minmax(0,1fr)_320px]">
-    <aside className="producer-panel h-fit overflow-hidden xl:sticky xl:top-24"><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Semua News</p><p className="mt-1 text-xs text-subtle">{items.length} konten</p></div><button type="button" className="icon-btn" onClick={() => setForm({ ...empty })}><Plus size={16} /></button></div><label className="mt-4 flex items-center gap-2 rounded-sm border border-line bg-bg-alt px-3"><Search size={15} className="text-subtle" /><input className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari judul…" /></label></div><div className="max-h-[680px] overflow-auto p-2">{filtered.length ? filtered.map((item) => <button key={item.id} type="button" className={cn("content-list-row", form.id === item.id && "is-active")} onClick={() => setForm({ id: item.id, category: item.category, title: item.title, excerpt: item.excerpt, body: item.body.join("\n\n"), thumb: item.thumb, publishedAt: item.publishedAt })}><span className="content-list-thumb">{item.thumb === "bitcoin" ? "₿" : item.thumb === "gold" ? "Au" : "E"}</span><span className="min-w-0 flex-1 text-left"><span className="block truncate text-xs text-subtle">{item.category}</span><span className="mt-1 block truncate text-sm font-semibold">{item.title}</span><span className="mt-1 block text-[11px] text-subtle">{formatIdDate(item.publishedAt)}</span></span><ChevronRight size={14} className="text-subtle" /></button>) : <EmptyState text="Tidak ada hasil." />}</div></aside>
-    <form onSubmit={submit} className="grid gap-4"><section className="producer-panel overflow-hidden"><div className="sticky-form-head"><div><span className="badge">{form.id ? `ID #${form.id}` : "Konten baru"}</span><h2 className="mt-2 text-xl font-extrabold">{form.title || "News baru"}</h2><p className="mt-1 text-xs text-subtle">Konten editorial sebelum tayang.</p></div><div className="flex gap-2"><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan News"}</button></div></div></section>{error ? <div className="rounded-md border border-accent-red/30 bg-accent-red-bg px-4 py-3 text-sm text-accent-red">{error}</div> : null}<section className="producer-panel p-5"><SectionLabel icon={<Newspaper size={15} />} title="Editorial" note="Metadata dan isi" /><div className="mt-4 grid gap-4"><div className="grid gap-3 md:grid-cols-3"><Field label="Kategori"><input className="form-field" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></Field><Field label="Visual"><select className="form-field" value={form.thumb} onChange={(e) => setForm({ ...form, thumb: e.target.value as NewsThumb })}><option value="capitol">Ekonomi</option><option value="gold">Emas</option><option value="bitcoin">Bitcoin</option></select></Field><Field label="Tanggal"><input className="form-field" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} required /></Field></div><Field label="Judul"><input className="form-field form-field-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Ringkasan"><textarea className="form-field min-h-[110px]" value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} required /></Field><Field label="Isi berita"><textarea className="form-field min-h-[320px]" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required /></Field></div></section><div className="flex justify-between gap-2"><button type="button" className="btn btn-danger" disabled={!form.id || busy} onClick={() => void remove()}><Trash2 size={15} /> Hapus</button></div></form>
-    <aside className="h-fit xl:sticky xl:top-24"><NewsPreview form={form} /></aside>
-  </div>;
+  const [form, setForm] = useState(empty); const [query, setQuery] = useState(""); const [error, setError] = useState("");
+  const filtered = items.filter((item) => `${item.category} ${item.title}`.toLowerCase().includes(query.toLowerCase()));
+  const fill = (item: NewsItem) => setForm({ id: item.id, category: item.category, title: item.title, excerpt: item.excerpt, body: item.body.join("\n\n"), thumb: item.thumb, publishedAt: item.publishedAt });
+  const save = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(""); try { await saveNews({ data: { token, ...form } }); setForm(empty); await onRefresh(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } };
+  const remove = async () => { if (!form.id || !confirm("Hapus news ini secara permanen?")) return; setBusy(true); try { await deleteNews({ data: { token, id: form.id } }); setForm(empty); await onRefresh(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } };
+  return <div className="page-stack"><PageHeader eyebrow="News CMS" title="News" description="Kelola berita dan editorial content dalam satu workspace." action={<button className="primary-button" type="button" onClick={() => setForm(empty)}><Plus size={15} /> News Baru</button>} /><div className="content-toolbar"><div className="search-control"><Search size={15} /><input placeholder="Cari berita…" value={query} onChange={(e) => setQuery(e.target.value)} /></div><button className="secondary-button compact-btn" type="button" onClick={() => void onRefresh()}><RefreshCw size={14} /> Refresh</button></div><div className="cms-grid"><section className="surface-card list-card"><SectionTitle title="Semua News" caption={`${filtered.length} konten`} /><div className="table-list">{filtered.length ? filtered.map((item) => <button key={item.id} type="button" className={cn("content-list-row", form.id === item.id && "is-selected")} onClick={() => fill(item)}><div className={cn("thumb-sm", `thumb-${item.thumb}`)}><Newspaper size={16} /></div><div className="row-text"><strong>{item.title}</strong><span>{item.category} · {formatIdDate(item.publishedAt)}</span></div><span className="status-pill status-published">Published</span><ChevronRight size={15} /></button>) : <EmptyPanel text="Belum ada news." />}</div></section><form className="surface-card editor-card" onSubmit={save}><div className="editor-head"><div><span className="editor-kicker">{form.id ? "Edit editorial" : "Konten baru"}</span><h2>{form.id ? form.title || "Untitled" : "Buat News"}</h2></div></div>{error ? <div className="inline-error">{error}</div> : null}<div className="editor-section"><SectionHeading>Informasi editorial</SectionHeading><div className="field-grid three"><Field label="Kategori"><input className="control" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></Field><Field label="Visual"><select className="control" value={form.thumb} onChange={(e) => setForm({ ...form, thumb: e.target.value as NewsThumb })}><option value="capitol">Ekonomi</option><option value="gold">Emas</option><option value="bitcoin">Bitcoin</option></select></Field><Field label="Tanggal"><input className="control" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} /></Field></div></div><div className="editor-section"><SectionHeading>Konten</SectionHeading><div className="field-grid"><Field label="Judul"><input className="control" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Ringkasan"><textarea className="control textarea-sm" value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} required /></Field><Field label="Isi berita"><textarea className="control textarea-lg" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required /></Field></div></div><div className="editor-footer"><div>{form.id ? <button className="danger-button" type="button" onClick={() => void remove()} disabled={busy}><Trash2 size={14} /> Hapus</button> : null}</div><button className="primary-button" type="submit" disabled={busy}>{busy ? "Menyimpan…" : "Simpan News"}</button></div></form></div></div>;
 }
 
-function NewsPreview({ form }: { form: { category: string; title: string; excerpt: string; body: string; thumb: NewsThumb; publishedAt: string } }) { return <section className="producer-panel overflow-hidden"><div className="border-b border-line p-4"><p className="text-sm font-bold">Live Preview</p><p className="mt-1 text-xs text-subtle">Pratinjau artikel news.</p></div><article className="bg-bg"><div className="grid aspect-[16/10] place-items-center bg-bg-alt text-sm font-bold text-subtle">{form.thumb === "bitcoin" ? "₿" : form.thumb === "gold" ? "Au" : "EKONOMI"}</div><div className="p-4"><span className="badge">{form.category}</span><h3 className="mt-3 text-lg font-extrabold leading-tight">{form.title || "Judul news"}</h3><p className="mt-2 text-sm leading-6 text-muted">{form.excerpt || "Ringkasan news akan tampil di sini."}</p><div className="mt-4 flex items-center gap-2 text-xs text-subtle"><Clock3 size={13} /> {form.publishedAt}</div></div></article></section>; }
-
-function EdukasiStudio({ token, items, onChange, busy, setBusy }: { token: string; items: EdukasiItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void }) {
-  const empty = useMemo(() => ({ id: undefined as number | undefined, level: "Pemula" as EduLevel, title: "", description: "", body: "", imageUrl: "" }), []);
-  const [form, setForm] = useState(empty); const [error, setError] = useState(""); const [query, setQuery] = useState("");
-  useEffect(() => { const handler = () => { setForm({ ...empty }); setError(""); }; window.addEventListener("studio:new-education", handler); return () => window.removeEventListener("studio:new-education", handler); }, [empty]);
-  async function submit(e: FormEvent) { e.preventDefault(); setError(""); setBusy(true); try { await saveEdukasi({ data: { token, ...form } }); setForm({ ...empty }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } }
-  async function remove() { if (!form.id || !confirm("Hapus materi ini secara permanen?")) return; setBusy(true); try { await deleteEdukasi({ data: { token, id: form.id } }); setForm({ ...empty }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } }
-  const filtered = items.filter((item) => `${item.level} ${item.title} ${item.description}`.toLowerCase().includes(query.toLowerCase()));
-  return <div className="grid gap-5 xl:grid-cols-[290px_minmax(0,1fr)_320px]"><aside className="producer-panel h-fit overflow-hidden xl:sticky xl:top-24"><div className="border-b border-line p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Semua Edukasi</p><p className="mt-1 text-xs text-subtle">{items.length} materi</p></div><button type="button" className="icon-btn" onClick={() => setForm({ ...empty })}><Plus size={16} /></button></div><label className="mt-4 flex items-center gap-2 rounded-sm border border-line bg-bg-alt px-3"><Search size={15} className="text-subtle" /><input className="min-w-0 flex-1 bg-transparent py-2.5 text-sm outline-none" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari materi…" /></label></div><div className="max-h-[680px] overflow-auto p-2">{filtered.length ? filtered.map((item) => <button key={item.id} type="button" className={cn("content-list-row", form.id === item.id && "is-active")} onClick={() => setForm(item)}><span className="content-list-thumb"><BookOpen size={15} /></span><span className="min-w-0 flex-1 text-left"><span className="block text-xs text-subtle">{item.level}</span><span className="mt-1 block truncate text-sm font-semibold">{item.title}</span><span className="mt-1 block truncate text-[11px] text-subtle">{item.description}</span></span><ChevronRight size={14} className="text-subtle" /></button>) : <EmptyState text="Tidak ada hasil." />}</div></aside><form onSubmit={submit} className="grid gap-4"><section className="producer-panel overflow-hidden"><div className="sticky-form-head"><div><span className="badge">{form.id ? `ID #${form.id}` : "Konten baru"}</span><h2 className="mt-2 text-xl font-extrabold">{form.title || "Materi baru"}</h2><p className="mt-1 text-xs text-subtle">Susun materi untuk learning path Birustock.</p></div><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan Materi"}</button></div></section>{error ? <div className="rounded-md border border-accent-red/30 bg-accent-red-bg px-4 py-3 text-sm text-accent-red">{error}</div> : null}<section className="producer-panel p-5"><SectionLabel icon={<BookOpen size={15} />} title="Learning Content" note="Struktur materi" /><div className="mt-4 grid gap-4"><Field label="Level"><select className="form-field max-w-xs" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as EduLevel })}><option>Pemula</option><option>Menengah</option><option>Lanjutan</option></select></Field><Field label="Judul"><input className="form-field form-field-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Deskripsi"><textarea className="form-field min-h-[110px]" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required /></Field><Field label="Isi materi"><textarea className="form-field min-h-[320px]" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required /></Field><ImageField value={form.imageUrl} onChange={(imageUrl) => setForm({ ...form, imageUrl })} /></div></section><div className="flex justify-start"><button type="button" className="btn btn-danger" disabled={!form.id || busy} onClick={() => void remove()}><Trash2 size={15} /> Hapus</button></div></form><aside className="h-fit xl:sticky xl:top-24"><EducationPreview form={form} /></aside></div>;
+function EdukasiManager({ token, items, busy, setBusy, onRefresh }: { token: string; items: EdukasiItem[]; busy: boolean; setBusy: (value: boolean) => void; onRefresh: () => Promise<void> }) {
+  const empty = useMemo(() => ({ id: undefined as number | undefined, slug: undefined as string | undefined, level: "Pemula" as EduLevel, title: "", description: "", body: "", imageUrl: "" }), []);
+  const [form, setForm] = useState(empty); const [query, setQuery] = useState(""); const [error, setError] = useState("");
+  const filtered = items.filter((item) => `${item.level} ${item.title}`.toLowerCase().includes(query.toLowerCase()));
+  const fill = (item: EdukasiItem) => setForm(item);
+  const save = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(""); try { await saveEdukasi({ data: { token, ...form } }); setForm(empty); await onRefresh(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } };
+  const remove = async () => { if (!form.id || !confirm("Hapus materi ini secara permanen?")) return; setBusy(true); try { await deleteEdukasi({ data: { token, id: form.id } }); setForm(empty); await onRefresh(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } };
+  return <div className="page-stack"><PageHeader eyebrow="Edukasi CMS" title="Edukasi" description="Susun materi belajar Birustock dari pemula sampai lanjutan." action={<button className="primary-button" type="button" onClick={() => setForm(empty)}><Plus size={15} /> Edukasi Baru</button>} /><div className="content-toolbar"><div className="search-control"><Search size={15} /><input placeholder="Cari materi…" value={query} onChange={(e) => setQuery(e.target.value)} /></div><button className="secondary-button compact-btn" type="button" onClick={() => void onRefresh()}><RefreshCw size={14} /> Refresh</button></div><div className="cms-grid"><section className="surface-card list-card"><SectionTitle title="Semua Edukasi" caption={`${filtered.length} materi`} /><div className="table-list">{filtered.length ? filtered.map((item) => <button key={item.id} type="button" className={cn("content-list-row", form.id === item.id && "is-selected")} onClick={() => fill(item)}><div className="thumb-sm edu-thumb"><BookOpen size={16} /></div><div className="row-text"><strong>{item.title}</strong><span>{item.level}</span></div><span className="level-pill">{item.level}</span><ChevronRight size={15} /></button>) : <EmptyPanel text="Belum ada materi." />}</div></section><form className="surface-card editor-card" onSubmit={save}><div className="editor-head"><div><span className="editor-kicker">{form.id ? "Edit materi" : "Konten baru"}</span><h2>{form.id ? form.title || "Untitled" : "Buat Edukasi"}</h2></div><span className="level-pill">{form.level}</span></div>{error ? <div className="inline-error">{error}</div> : null}<div className="editor-section"><SectionHeading>Informasi materi</SectionHeading><div className="field-grid two"><Field label="Level"><select className="control" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as EduLevel })}><option>Pemula</option><option>Menengah</option><option>Lanjutan</option></select></Field><Field label="URL gambar"><input className="control" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://…" /></Field></div></div><div className="editor-section"><SectionHeading>Konten</SectionHeading><div className="field-grid"><Field label="Judul"><input className="control" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Ringkasan"><textarea className="control textarea-sm" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required /></Field><Field label="Isi materi"><textarea className="control textarea-lg" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required /></Field></div></div><div className="editor-footer"><div>{form.id ? <button className="danger-button" type="button" onClick={() => void remove()} disabled={busy}><Trash2 size={14} /> Hapus</button> : null}</div><button className="primary-button" type="submit" disabled={busy}>{busy ? "Menyimpan…" : "Simpan Materi"}</button></div></form></div></div>;
 }
 
-function EducationPreview({ form }: { form: { level: EduLevel; title: string; description: string; body: string; imageUrl: string } }) { return <section className="producer-panel overflow-hidden"><div className="border-b border-line p-4"><p className="text-sm font-bold">Live Preview</p><p className="mt-1 text-xs text-subtle">Pratinjau materi belajar.</p></div><article className="bg-bg"><div className="aspect-[16/10] bg-bg-alt">{form.imageUrl ? <img src={form.imageUrl} alt="" className="size-full object-cover" /> : <div className="grid size-full place-items-center text-xs text-subtle">No image</div>}</div><div className="p-4"><span className="badge">{form.level}</span><h3 className="mt-3 text-lg font-extrabold leading-tight">{form.title || "Judul materi"}</h3><p className="mt-2 text-sm leading-6 text-muted">{form.description || "Deskripsi materi akan tampil di sini."}</p><div className="mt-4 rounded-sm border border-line p-3"><div className="text-[10px] uppercase tracking-[0.12em] text-subtle">Isi</div><p className="mt-2 line-clamp-8 whitespace-pre-line text-xs leading-5 text-muted">{form.body || "Belum ada isi materi."}</p></div></div></article></section>; }
+function SettingsPage() {
+  return <div className="page-stack"><PageHeader eyebrow="Workspace" title="Settings" description="Pengaturan dasar untuk workspace Producer Birustock." /><div className="settings-grid"><section className="surface-card setting-card"><div className="setting-head"><div className="setting-icon"><Settings size={17} /></div><div><h3>Workspace</h3><p>Identitas ruang kerja internal.</p></div></div><Field label="Nama workspace"><input className="control" value="Birustock Producer" readOnly /></Field><Field label="Environment"><input className="control" value="Production" readOnly /></Field><div className="connected-badge"><span /> Neon database connected</div></section><section className="surface-card setting-card"><div className="setting-head"><div className="setting-icon green"><Bell size={17} /></div><div><h3>Notifications</h3><p>Kontrol notifikasi workspace.</p></div></div><ToggleRow label="Konten baru dipublish" checked /><ToggleRow label="Draft belum diperbarui" checked /><ToggleRow label="Update sistem" checked={false} /></section></div></div>;
+}
+function ToggleRow({ label, checked }: { label: string; checked: boolean }) { return <div className="toggle-row"><span>{label}</span><div className={cn("switch", checked && "is-on")}><span /></div></div>; }
 
-function SectionLabel({ icon, title, note }: { icon: ReactNode; title: string; note: string }) { return <div className="flex items-center gap-3"><span className="section-icon">{icon}</span><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs text-subtle">{note}</p></div></div>; }
-function FilterChip({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) { return <button type="button" className={cn("filter-chip", active && "is-active")} onClick={onClick}>{children}</button>; }
-function EmptyState({ text }: { text: string }) { return <div className="px-3 py-8 text-center text-sm text-subtle">{text}</div>; }
-function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>{children}</label>; }
+function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) { return <div className="page-header"><div><div className="page-eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{action ? <div>{action}</div> : null}</div>; }
+function SectionTitle({ title, caption, action }: { title: string; caption?: string; action?: ReactNode }) { return <div className="section-title"><div><h3>{title}</h3>{caption ? <p>{caption}</p> : null}</div>{action}</div>; }
+function SectionHeading({ children }: { children: ReactNode }) { return <div className="section-heading">{children}</div>; }
+function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field-stack"><span>{label}</span>{children}</label>; }
+function EmptyPanel({ text }: { text: string }) { return <div className="empty-panel">{text}</div>; }
+
