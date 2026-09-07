@@ -21,15 +21,6 @@ export function ProducerShell({ children }: { children: ReactNode }) {
           <div className="boot-bar" aria-hidden="true"><div className="boot-bar-fill" /></div>
         </div>
       ) : null}
-      <header className="border-b border-line bg-bg/90 backdrop-blur">
-        <div className="container-site flex h-16 items-center justify-between gap-4">
-          <BrandLockup />
-          <div className="hidden items-center gap-2 sm:flex">
-            <span className="size-2 rounded-full bg-accent-green" />
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Producer</span>
-          </div>
-        </div>
-      </header>
       <main>{children}</main>
     </div>
   );

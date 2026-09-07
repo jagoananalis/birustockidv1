@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { BrandLockup } from "@/components/brand-mark";
 import {
   Archive,
   ArrowLeft,
@@ -159,6 +160,39 @@ function StudioPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [globalError, setGlobalError] = useState("");
+  const [globalQuery, setGlobalQuery] = useState("");
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [selection, setSelection] = useState<{ tab: Tab; id: number } | null>(null);
+  const globalSearchRef = useRef<HTMLInputElement | null>(null);
+
+  const globalResults = useMemo(() => {
+    const q = globalQuery.trim().toLowerCase();
+    if (!q) return [];
+    return [
+      ...analisis.map((item) => ({ tab: "analisis" as const, id: item.id, eyebrow: item.pair, title: item.title, meta: `${item.status} · ${item.timeframe}` })),
+      ...news.map((item) => ({ tab: "news" as const, id: item.id, eyebrow: item.category, title: item.title, meta: formatIdDate(item.publishedAt) })),
+      ...edukasi.map((item) => ({ tab: "edukasi" as const, id: item.id, eyebrow: item.level, title: item.title, meta: "Materi belajar" })),
+    ].filter((item) => `${item.eyebrow} ${item.title} ${item.meta}`.toLowerCase().includes(q)).slice(0, 8);
+  }, [analisis, news, edukasi, globalQuery]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setGlobalSearchOpen(true);
+        requestAnimationFrame(() => globalSearchRef.current?.focus());
+      }
+      if (event.key === "Escape") {
+        setGlobalSearchOpen(false);
+        setNotificationsOpen(false);
+        setProfileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   async function refresh() {
     if (!token) return;
@@ -259,12 +293,28 @@ function StudioPage() {
     <main className="producer-app">
       <header className="producer-topbar">
         <div className="producer-topbar-inner">
-          <button type="button" className="producer-mobile-trigger" onClick={() => setMobileNav(true)} aria-label="Buka navigasi"><Menu size={19} /></button>
-          <div className="producer-topbar-search"><Search size={16} /><span>Cari konten, judul, atau topik…</span><kbd>⌘K</kbd></div>
+          <div className="producer-topbar-brand"><button type="button" className="producer-mobile-trigger" onClick={() => setMobileNav(true)} aria-label="Buka navigasi"><Menu size={19} /></button><BrandLockup /></div>
+          <div className="producer-topbar-search-wrap">
+            <label className={cn("producer-topbar-search", globalSearchOpen && "is-focused")}>
+              <Search size={16} />
+              <input ref={globalSearchRef} value={globalQuery} onChange={(event) => { setGlobalQuery(event.target.value); setGlobalSearchOpen(true); }} onFocus={() => setGlobalSearchOpen(true)} placeholder="Cari konten, judul, atau topik…" aria-label="Cari konten" />
+              <button type="button" className="search-clear" onClick={() => { setGlobalQuery(""); setGlobalSearchOpen(false); globalSearchRef.current?.focus(); }} aria-label="Bersihkan pencarian" hidden={!globalQuery}><X size={14} /></button>
+              <kbd>Ctrl K</kbd>
+            </label>
+            {globalSearchOpen ? <div className="global-search-popover">
+              {globalQuery ? (globalResults.length ? <div className="global-search-results">{globalResults.map((result) => <button key={`${result.tab}-${result.id}`} type="button" className="global-search-result" onClick={() => { setTab(result.tab); setSelection({ tab: result.tab, id: result.id }); setGlobalSearchOpen(false); setGlobalQuery(""); }}><span className="global-search-result-icon">{result.tab === "analisis" ? <BarChart3 size={15} /> : result.tab === "news" ? <Newspaper size={15} /> : <BookOpen size={15} />}</span><span className="global-search-result-copy"><strong>{result.title}</strong><small>{result.eyebrow} · {result.meta}</small></span><ChevronRight size={14} /></button>)}</div> : <div className="global-search-empty"><Search size={16} /><span>Tidak menemukan konten yang cocok.</span></div>) : <div className="global-search-empty"><Search size={16} /><span>Ketik untuk mencari Analisis, News, atau Edukasi.</span></div>}
+            </div> : null}
+          </div>
           <div className="producer-topbar-actions">
-            <button type="button" className="icon-btn" title="Refresh data" onClick={() => void refresh()} disabled={refreshing}><RefreshCw size={17} className={cn(refreshing && "animate-spin")} /></button>
-            <button type="button" className="icon-btn" title="Notifikasi"><Bell size={17} /></button>
-            <div className="producer-profile"><span className="producer-avatar">P</span><span className="producer-profile-copy"><strong>Producer</strong><small>Birustock</small></span><ChevronDown size={14} className="text-subtle" /></div>
+            <button type="button" className="icon-btn" title="Refresh data" aria-label="Refresh data" onClick={() => void refresh()} disabled={refreshing}><RefreshCw size={17} className={cn(refreshing && "animate-spin")} /></button>
+            <div className="topbar-popover-wrap">
+              <button type="button" className={cn("icon-btn", notificationsOpen && "is-active")} title="Notifikasi" aria-label="Notifikasi" aria-expanded={notificationsOpen} onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); }}><Bell size={17} />{(globalError || analisis.some((item) => item.status === "DRAFT")) ? <span className="notification-dot" /> : null}</button>
+              {notificationsOpen ? <div className="topbar-popover notifications-popover"><div className="topbar-popover-head"><div><strong>Notifikasi</strong><small>Ringkasan workspace</small></div><button type="button" className="icon-btn tiny" onClick={() => setNotificationsOpen(false)} aria-label="Tutup"><X size={14} /></button></div><div className="notification-list">{globalError ? <div className="notification-item warning"><span className="notification-item-icon"><CircleHelp size={15} /></span><span><strong>Ada masalah pemuatan</strong><small>{globalError}</small></span></div> : null}{analisis.filter((item) => item.status === "DRAFT").slice(0, 3).map((item) => <button type="button" className="notification-item" key={item.id} onClick={() => { setTab("analisis"); setSelection({ tab: "analisis", id: item.id }); setNotificationsOpen(false); }}><span className="notification-item-icon"><PencilLine size={15} /></span><span><strong>Draft menunggu dilanjutkan</strong><small>{item.title}</small></span></button>)}{!globalError && !analisis.some((item) => item.status === "DRAFT") ? <div className="notification-empty"><Check size={16} /><span>Tidak ada notifikasi baru.</span></div> : null}</div></div> : null}
+            </div>
+            <div className="topbar-popover-wrap">
+              <button type="button" className={cn("producer-profile", profileOpen && "is-active")} aria-expanded={profileOpen} onClick={() => { setProfileOpen((value) => !value); setNotificationsOpen(false); }}><span className="producer-avatar">P</span><span className="producer-profile-copy"><strong>Producer</strong><small>Birustock</small></span><ChevronDown size={14} className={cn("text-subtle", profileOpen && "rotate-180")} /></button>
+              {profileOpen ? <div className="topbar-popover profile-popover"><button type="button" className="profile-action" onClick={() => window.open(PUBLIC_SITE_URL, "_blank")}><ExternalLink size={15} /><span>Website publik</span></button><button type="button" className="profile-action" onClick={() => { setTab("settings"); setProfileOpen(false); }}><Settings2 size={15} /><span>Pengaturan</span></button><div className="profile-divider" /><button type="button" className="profile-action danger-link" onClick={logout}><LogOut size={15} /><span>Keluar</span></button></div> : null}
+            </div>
           </div>
         </div>
       </header>
@@ -275,11 +325,11 @@ function StudioPage() {
           <div className="producer-sidebar-brand"><div className="producer-sidebar-mark">B</div><div><div className="producer-sidebar-title">Birustock</div><div className="producer-sidebar-sub">Producer</div></div></div>
           <div className="producer-workspace-card"><div className="workspace-topline"><span>Workspace</span><span className="workspace-status"><i />Live</span></div><strong>Birustock Production</strong><div className="workspace-progress"><span style={{ width: "74%" }} /></div><div className="workspace-meta"><span>Content capacity</span><strong>74%</strong></div></div>
           <nav className="producer-nav" aria-label="Producer Navigation">
-            <ProducerNavItem icon={<LayoutDashboard size={17} />} label="Dashboard" active={tab === "dashboard"} onClick={() => { setTab("dashboard"); setMobileNav(false); }} />
-            <ProducerNavItem icon={<BarChart3 size={17} />} label="Analisis" count={analisis.length} active={tab === "analisis"} onClick={() => { setTab("analisis"); setMobileNav(false); }} />
-            <ProducerNavItem icon={<Newspaper size={17} />} label="News" count={news.length} active={tab === "news"} onClick={() => { setTab("news"); setMobileNav(false); }} />
-            <ProducerNavItem icon={<BookOpen size={17} />} label="Edukasi" count={edukasi.length} active={tab === "edukasi"} onClick={() => { setTab("edukasi"); setMobileNav(false); }} />
-            <ProducerNavItem icon={<Settings2 size={17} />} label="Pengaturan" active={tab === "settings"} onClick={() => { setTab("settings"); setMobileNav(false); }} />
+            <ProducerNavItem icon={<LayoutDashboard size={17} />} label="Dashboard" active={tab === "dashboard"} onClick={() => { setTab("dashboard"); setSelection(null); setMobileNav(false); }} />
+            <ProducerNavItem icon={<BarChart3 size={17} />} label="Analisis" count={analisis.length} active={tab === "analisis"} onClick={() => { setTab("analisis"); setSelection(null); setMobileNav(false); }} />
+            <ProducerNavItem icon={<Newspaper size={17} />} label="News" count={news.length} active={tab === "news"} onClick={() => { setTab("news"); setSelection(null); setMobileNav(false); }} />
+            <ProducerNavItem icon={<BookOpen size={17} />} label="Edukasi" count={edukasi.length} active={tab === "edukasi"} onClick={() => { setTab("edukasi"); setSelection(null); setMobileNav(false); }} />
+            <ProducerNavItem icon={<Settings2 size={17} />} label="Pengaturan" active={tab === "settings"} onClick={() => { setTab("settings"); setSelection(null); setMobileNav(false); }} />
           </nav>
           <div className="producer-sidebar-foot"><button type="button" className="producer-nav-secondary" onClick={() => window.open(PUBLIC_SITE_URL, "_blank")}><ExternalLink size={16} /><span>Website publik</span><ArrowUpRight size={14} /></button><button type="button" className="producer-nav-secondary danger-link" onClick={logout}><LogOut size={16} /><span>Keluar</span></button></div>
         </aside>
@@ -288,9 +338,9 @@ function StudioPage() {
         <section className="producer-main">
           {globalError ? <div className="workspace-alert"><span>{globalError}</span><button type="button" onClick={() => void refresh()}><RefreshCw size={14} /> Refresh</button></div> : null}
           {tab === "dashboard" ? <Dashboard analisis={analisis} news={news} edukasi={edukasi} onSelect={setTab} /> : null}
-          {tab === "analisis" ? <AnalisisStudio token={token} items={analisis} onChange={refresh} busy={busy} setBusy={setBusy} /> : null}
-          {tab === "news" ? <NewsStudio token={token} items={news} onChange={refresh} busy={busy} setBusy={setBusy} /> : null}
-          {tab === "edukasi" ? <EdukasiStudio token={token} items={edukasi} onChange={refresh} busy={busy} setBusy={setBusy} /> : null}
+          {tab === "analisis" ? <AnalisisStudio token={token} items={analisis} onChange={refresh} busy={busy} setBusy={setBusy} selectId={selection?.tab === "analisis" ? selection.id : null} /> : null}
+          {tab === "news" ? <NewsStudio token={token} items={news} onChange={refresh} busy={busy} setBusy={setBusy} selectId={selection?.tab === "news" ? selection.id : null} /> : null}
+          {tab === "edukasi" ? <EdukasiStudio token={token} items={edukasi} onChange={refresh} busy={busy} setBusy={setBusy} selectId={selection?.tab === "edukasi" ? selection.id : null} /> : null}
           {tab === "settings" ? <SettingsPage /> : null}
         </section>
       </div>
@@ -340,7 +390,7 @@ function LegendRow({ dot, label, value }: { dot: string; label: string; value: n
 function WorkflowRow({ label, value, tone }: { label: string; value: number; tone: string }) { return <div className="workflow-row"><span><i className={cn("workflow-dot", tone)} />{label}</span><strong>{value}</strong></div>; }
 function QuickAction({ icon, label, detail, onClick }: { icon: ReactNode; label: string; detail: string; onClick: () => void }) { return <button type="button" className="quick-action" onClick={onClick}><span className="quick-action-icon">{icon}</span><span><strong>{label}</strong><small>{detail}</small></span><ChevronRight size={15} /></button>; }
 
-function AnalisisStudio({ token, items, onChange, busy, setBusy }: { token: string; items: AnalisisItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void }) {
+function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { token: string; items: AnalisisItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; selectId?: number | null }) {
   const [form, setForm] = useState<AnalisisForm>(emptyAnalisis);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | AnalisisStatus>("ALL");
@@ -352,6 +402,12 @@ function AnalisisStudio({ token, items, onChange, busy, setBusy }: { token: stri
     const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
     return matchesText && matchesStatus;
   }), [items, query, statusFilter]);
+
+  useEffect(() => {
+    if (selectId == null) return;
+    const item = items.find((candidate) => candidate.id === selectId);
+    if (item) fill(item);
+  }, [items, selectId]);
 
   function fill(item: AnalisisItem) {
     setForm({ id: item.id, slug: item.slug, pair: item.pair, title: item.title, excerpt: item.excerpt, body: item.body, imageUrl: item.imageUrl, accent: item.accent, publishedAt: item.publishedAt, status: item.status, timeframe: item.timeframe, bias: item.bias as AnalisisForm["bias"], support: item.support, resistance: item.resistance, target: item.target, invalidation: item.invalidation, scenarioBullish: item.scenarioBullish, scenarioBearish: item.scenarioBearish });
@@ -420,7 +476,7 @@ function AnalisisPreview({ form }: { form: AnalisisForm }) {
   return <article className="public-preview analysis-preview"><div className="public-preview-cover">{form.imageUrl ? <img src={form.imageUrl} alt="" /> : <div className="preview-image-empty"><ImageIcon size={28} /><span>Belum ada gambar</span></div>}</div><div className="public-preview-body"><div className="preview-chip-row"><span className="preview-chip">{form.pair}</span><span className="preview-meta">{form.timeframe} · {form.publishedAt || today()}</span></div><span className="preview-bias">{form.bias}</span><h4>{form.title || "Judul analisis"}</h4><p>{form.excerpt || "Ringkasan analisis akan tampil di sini."}</p><div className="preview-level-grid"><PreviewLevel label="Support" value={form.support} /><PreviewLevel label="Resistance" value={form.resistance} /><PreviewLevel label="Target" value={form.target} /><PreviewLevel label="Invalidation" value={form.invalidation} /></div><div className="preview-mini-block"><span>Scenario</span><p>{form.scenarioBullish || form.scenarioBearish || "Tambahkan skenario agar preview terasa lengkap."}</p></div><button type="button" className="btn btn-primary btn-block" disabled>Preview publik</button></div></article>;
 }
 
-function NewsStudio({ token, items, onChange, busy, setBusy }: { token: string; items: NewsItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void }) {
+function NewsStudio({ token, items, onChange, busy, setBusy, selectId }: { token: string; items: NewsItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; selectId?: number | null }) {
   const [form, setForm] = useState<NewsForm>(emptyNews);
   const [query, setQuery] = useState("");
   const [section, setSection] = useState<NewsSection>("overview");
@@ -432,12 +488,17 @@ function NewsStudio({ token, items, onChange, busy, setBusy }: { token: string; 
   return <div className="producer-page editor-page"><PageHeader eyebrow="News CMS" title="News" description="Kelola berita dan editorial dengan alur kerja yang fokus dan mudah dipindai."><button type="button" className="btn btn-primary" onClick={() => { setForm(emptyNews()); setSection("overview"); }}><Plus size={16} /> News Baru</button></PageHeader><div className="editor-layout news-layout"><aside className="surface-card content-library"><div className="content-library-head"><div><span className="panel-eyebrow">Editorial library</span><h2>Semua News</h2><p>{items.length} konten</p></div><button type="button" className="icon-btn subtle-icon" onClick={() => setForm(emptyNews())}><Plus size={17} /></button></div><div className="library-search"><Search size={15} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari judul..." /></div><div className="content-library-scroll">{filtered.map((item) => <button key={item.id} type="button" className={cn("library-item", form.id === item.id && "is-selected")} onClick={() => fill(item)}><Thumb src="" fallback={item.category} className="library-thumb" /><span className="library-item-main"><span className="library-item-meta"><strong>{item.category}</strong><span className="status-pill status-published">Published</span></span><strong className="library-item-title">{item.title}</strong><small>{formatIdDate(item.publishedAt)}</small></span><ChevronRight size={15} /></button>)}{!filtered.length ? <EmptyState text="Tidak ada news yang cocok." /> : null}</div></aside><section className="editor-workspace"><form className="surface-card editor-surface" onSubmit={submit}><div className="editor-toolbar"><div className="editor-toolbar-main"><span className="panel-eyebrow">{form.id ? `News #${form.id}` : "Konten baru"}</span><h2>{form.title || "Buat News"}</h2><div className="editor-meta-row"><span className="status-pill status-published">Published</span><span>Editorial content</span></div></div><div className="editor-toolbar-actions"><button type="button" className="btn btn-outline" onClick={() => window.open(`${PUBLIC_SITE_URL}/news/${form.slug || ""}`, "_blank")} disabled={!form.slug}>Lihat publik <ArrowUpRight size={15} /></button></div></div>{error ? <div className="inline-error">{error}</div> : null}<EditorTabs items={["overview", "content", "media"] as NewsSection[]} active={section} onChange={setSection} labels={{ overview: "Detail", content: "Konten", media: "Media" }} />{section === "overview" ? <FormSection icon={<Newspaper size={17} />} title="Editorial" description="Metadata berita yang akan tampil pada listing."><div className="field-grid two"><Field label="Kategori"><input className="control" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></Field><Field label="Visual"><select className="control" value={form.thumb} onChange={(e) => setForm({ ...form, thumb: e.target.value as NewsThumb })}><option value="capitol">Capitol</option><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option></select></Field></div><Field label="Tanggal tayang"><input className="control" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} /></Field><Field label="Judul"><input className="control control-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Ringkasan"><textarea className="control" rows={4} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} required /></Field></FormSection> : null}{section === "content" ? <FormSection icon={<FileText size={17} />} title="Konten Artikel" description="Susun artikel dalam paragraf yang singkat dan jelas."><SimpleEditor value={form.body} onChange={(body) => setForm({ ...form, body })} placeholder="Tulis isi artikel..." /></FormSection> : null}{section === "media" ? <FormSection icon={<ImageIcon size={17} />} title="Visual" description="Pengaturan visual saat ini menggunakan pilihan thumbnail yang tersedia."><div className="media-note"><div className="media-note-icon"><ImageIcon size={18} /></div><div><strong>{form.thumb}</strong><span>Thumbnail source dari preset editorial.</span></div></div></FormSection> : null}<div className="editor-action-bar"><div className="editor-action-left">{form.id ? <button type="button" className="btn btn-danger-outline" onClick={() => void remove()} disabled={busy}><Trash2 size={15} /> Hapus</button> : null}</div><div className="editor-action-right"><button type="button" className="btn btn-outline" onClick={() => setForm(emptyNews())}>Batal</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan News"}</button></div></div></form></section><aside className="preview-sticky"><div className="surface-card preview-surface"><div className="preview-head"><div><span className="panel-eyebrow">Preview Publik</span><h3>News Card</h3></div></div><article className="public-preview news-preview"><div className="public-preview-cover news-cover"><span>{form.category || "Kategori"}</span></div><div className="public-preview-body"><span className="preview-chip">{form.category || "Kategori"}</span><h4>{form.title || "Judul news"}</h4><p>{form.excerpt || "Ringkasan news akan tampil di sini."}</p><div className="preview-meta-row"><Clock3 size={14} />{formatIdDate(form.publishedAt)}</div></div></article></div></aside></div></div>;
 }
 
-function EdukasiStudio({ token, items, onChange, busy, setBusy }: { token: string; items: EdukasiItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void }) {
+function EdukasiStudio({ token, items, onChange, busy, setBusy, selectId }: { token: string; items: EdukasiItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; selectId?: number | null }) {
   const [form, setForm] = useState<EdukasiForm>(emptyEdukasi);
   const [query, setQuery] = useState("");
   const [section, setSection] = useState<EducationSection>("overview");
   const [error, setError] = useState("");
   const filtered = items.filter((item) => `${item.title} ${item.level}`.toLowerCase().includes(query.toLowerCase()));
+  useEffect(() => {
+    if (selectId == null) return;
+    const item = items.find((candidate) => candidate.id === selectId);
+    if (item) fill(item);
+  }, [items, selectId]);
   function fill(item: EdukasiItem) { setForm({ id: item.id, slug: item.slug, level: item.level, title: item.title, description: item.description, body: item.body, imageUrl: item.imageUrl }); setSection("overview"); setError(""); }
   async function submit(e: FormEvent) { e.preventDefault(); setError(""); setBusy(true); try { await saveEdukasi({ data: { token, ...form } }); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } }
   async function remove() { if (!form.id || !confirm("Hapus materi ini?")) return; setBusy(true); try { await deleteEdukasi({ data: { token, id: form.id } }); setForm(emptyEdukasi()); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } }
