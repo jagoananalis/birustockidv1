@@ -1,18 +1,15 @@
-# Birustock Producer V17 — Filled Editorial Workspace
+Producer V21 — Preview Image Lightbox + Longer Analysis Excerpt
+Target: birustockidv1
 
-Target repository: `birustockidv1` (Producer).
+Changes:
+- Public preview analysis image is clickable.
+- Opens a full-screen lightbox with Zoom In/Out, reset percentage, Esc/close, and scrollable viewport.
+- Same preview-image lightbox is used for Education cover images.
+- Analysis excerpt maximum increased from 240 to 500 characters.
+- Analysis excerpt textarea has a live 0/500 counter.
+- Existing V19/V20 local persistence and 5MB image upload behavior are preserved in studio.tsx.
 
-This patch keeps the V16 adaptive 3-column behavior and fixes the large empty
-area beneath the active Analisis / News / Edukasi workspace by making the
-editorial row fill the remaining viewport height on desktop.
-
-The layout remains structurally ready for a future card/section below the
-current workspace, but no extra feature/card is added in this version.
-
-Changed file:
-- `src/styles.css`
-
-Validation:
-- Run `npm run typecheck`
-- Run `npm run build`
-- Check `/studio/analisis`, `/studio/news`, `/studio/edukasi` at 80–125% zoom.
+Files:
+- src/studio.tsx
+- src/lib/content.ts
+- src/image-lightbox.css
