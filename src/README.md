@@ -1,13 +1,11 @@
-# Producer V19 — Local Cache / Draft Recovery
+Producer V20 — Image Upload
 
-Target: `birustockidv1` (Producer).
+Target: birustockidv1 (Producer)
 
-Adds browser-local persistence using localStorage for:
-- last opened Studio tab
-- global selected content
-- Analisis: current form, query, status filter, active section
-- News: current form, query, active section
-- Edukasi: current form, query, active section
+Changes:
+- Image upload accepts up to 5 MB (JPG/PNG/WebP).
+- Large images are resized to max 2200px and optimized client-side for the editor.
+- Cached editor state remains smaller than storing the original large file whenever optimization runs.
+- URL image input remains available.
 
-The current unsaved editor draft is restored after refresh/reopen of the Studio.
-A successful save/delete clears the corresponding local draft cache. Storage failures are ignored so the editor continues to work.
+No database, auth, route, or migration changes.

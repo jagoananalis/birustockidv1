@@ -576,8 +576,51 @@ function ScenarioCard({ tone, title, hint, value, onChange }: { tone: "positive"
   return <section className={cn("scenario-card", tone)}><div className="scenario-card-head"><span className="scenario-icon">{tone === "positive" ? <Check size={16} /> : <X size={16} />}</span><div><h3>{title}</h3><p>{hint}</p></div></div><textarea className="control" rows={12} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Tulis kondisi, trigger, invalidasi, atau konfirmasi yang perlu diperhatikan..." /></section>;
 }
 
+async function optimizeImageForEditor(file: File): Promise<string> {
+  const maxOriginalBytes = 5 * 1024 * 1024;
+  const maxDimension = 2200;
+  const targetBytes = 900 * 1024;
+  if (file.size > maxOriginalBytes) throw new Error("Ukuran gambar terlalu besar. Maksimal 5MB.");
+
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Gagal membaca gambar."));
+    reader.readAsDataURL(file);
+  });
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("File gambar tidak valid."));
+    img.src = dataUrl;
+  });
+
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(image, 0, 0, width, height);
+
+  if (file.size <= targetBytes && width === image.naturalWidth && height === image.naturalHeight) return dataUrl;
+
+  const mime = file.type === "image/png" && file.size <= targetBytes ? "image/png" : "image/webp";
+  let quality = 0.86;
+  let result = canvas.toDataURL(mime, quality);
+  for (let i = 0; i < 4 && result.length * 0.75 > targetBytes; i += 1) {
+    quality -= 0.1;
+    result = canvas.toDataURL(mime, quality);
+  }
+  return result;
+}
+
 function ImageField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  return <div className="image-field"><div className="image-field-input"><Field label="URL gambar"><input className="control" value={value.startsWith("data:") ? "" : value} placeholder="https://..." onChange={(e) => onChange(e.target.value)} /></Field><label className="file-drop"><input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 350_000) { alert("Maksimal 350KB."); return; } const reader = new FileReader(); reader.onload = () => onChange(String(reader.result ?? "")); reader.readAsDataURL(file); }} /><Upload size={17} /><span><strong>Upload gambar</strong><small>JPG / PNG · maks 350KB</small></span></label></div><div className="media-preview-large">{value ? <img src={value} alt="Preview" /> : <div className="media-placeholder"><ImageIcon size={26} /><span>Belum ada visual</span><small>Gunakan URL atau upload file.</small></div>}</div></div>;
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState("");
+  return <div className="image-field"><div className="image-field-input"><Field label="URL gambar"><input className="control" value={value.startsWith("data:") ? "" : value} placeholder="https://..." onChange={(e) => onChange(e.target.value)} /></Field><label className={cn("file-drop", imageBusy && "is-disabled")}><input type="file" accept="image/jpeg,image/png,image/webp" disabled={imageBusy} onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; setImageError(""); setImageBusy(true); void optimizeImageForEditor(file).then(onChange).catch((error) => setImageError(error instanceof Error ? error.message : "Gagal memproses gambar.")).finally(() => setImageBusy(false)); e.currentTarget.value = ""; }} /><Upload size={17} /><span><strong>{imageBusy ? "Memproses gambar…" : "Upload gambar"}</strong><small>JPG / PNG / WebP · maks 5MB · otomatis dioptimalkan</small></span></label>{imageError ? <div className="inline-error">{imageError}</div> : null}</div><div className="media-preview-large">{value ? <img src={value} alt="Preview" /> : <div className="media-placeholder"><ImageIcon size={26} /><span>Belum ada visual</span><small>Gunakan URL atau upload file.</small></div>}</div></div>;
 }
 
 function Thumb({ src, fallback, className }: { src?: string; fallback: string; className?: string }) {
