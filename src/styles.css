@@ -1839,3 +1839,60 @@
     max-width: none;
   }
 }
+
+/* V17 — fill the active editor workspace to the viewport bottom.
+   Purpose: remove the large dead area beneath Library / Editor / Preview while
+   keeping the lower page intentionally open for future workspace cards.
+   The current editorial workspace consumes the available viewport height;
+   future cards can be appended below without changing this shell. */
+@media (min-width: 901px) {
+  .producer-main {
+    min-height: calc(100vh - 72px);
+    min-width: 0;
+  }
+
+  .producer-page.editor-page {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 72px - 40px);
+    min-width: 0;
+  }
+
+  .producer-page.editor-page .producer-page-header {
+    flex: 0 0 auto;
+  }
+
+  .producer-page.editor-page .editor-layout,
+  .producer-page.editor-page .news-layout,
+  .producer-page.editor-page .education-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .producer-page.editor-page .content-library,
+  .producer-page.editor-page .editor-workspace,
+  .producer-page.editor-page .preview-sticky {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+/* On compact layouts, restore natural document flow so stacked preview/editor
+   sections can grow with their content rather than forcing viewport height. */
+@media (max-width: 900px) {
+  .producer-page.editor-page {
+    display: block;
+    min-height: 0;
+  }
+
+  .producer-page.editor-page .editor-layout,
+  .producer-page.editor-page .news-layout,
+  .producer-page.editor-page .education-layout {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+}

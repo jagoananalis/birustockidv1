@@ -1,15 +1,18 @@
-# Birustock Producer V16 — Adaptive 3-Column Layout
+# Birustock Producer V17 — Filled Editorial Workspace
 
-Target repo: `jagoananalis/birustockidv1` (Producer only).
+Target repository: `birustockidv1` (Producer).
 
-V16 fixes the remaining clipping/proportion issue seen on laptop/zoomed browser widths.
+This patch keeps the V16 adaptive 3-column behavior and fixes the large empty
+area beneath the active Analisis / News / Edukasi workspace by making the
+editorial row fill the remaining viewport height on desktop.
 
-- Desktop with enough width: Library 220px | Editor >=460px | Preview 300px.
-- When the viewport cannot safely fit those minima: switches to Library + Editor, with Preview below.
-- Preview, editor, and library never overlap or escape their grid column.
-- Preview cover remains 16:9 and text is constrained/wrapped.
-- Editor header/action bar can wrap instead of overflowing horizontally.
-- No database logic or route files are changed.
+The layout remains structurally ready for a future card/section below the
+current workspace, but no extra feature/card is added in this version.
 
-Install: replace `src/styles.css` with the included file.
-Then run `npm run typecheck` and `npm run build` before committing.
+Changed file:
+- `src/styles.css`
+
+Validation:
+- Run `npm run typecheck`
+- Run `npm run build`
+- Check `/studio/analisis`, `/studio/news`, `/studio/edukasi` at 80–125% zoom.
