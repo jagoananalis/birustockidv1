@@ -1149,3 +1149,158 @@
   .producer-topbar-brand .brand-lockup .brand-divider { display:none; }
   .producer-topbar-search-wrap { min-width: 0; }
 }
+
+
+/* V14 — isolated 3-column workspace: each pane owns its own scroll context.
+   No library, editor, or preview pane may visually overlap another pane. */
+.editor-page {
+  overflow: visible;
+}
+
+.editor-layout,
+.news-layout,
+.education-layout {
+  display: grid;
+  grid-template-columns: minmax(235px, 260px) minmax(0, 1fr) minmax(300px, 330px);
+  gap: 14px;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: calc(100vh - 190px);
+  max-height: calc(100vh - 190px);
+  overflow: hidden;
+}
+
+.editor-layout > *,
+.news-layout > *,
+.education-layout > * {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Library is a real pane, not a floating overlay. */
+.content-library {
+  position: relative;
+  inset: auto;
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-library-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Editor owns its scroll. The footer can remain sticky without affecting other columns. */
+.editor-workspace {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-right: 2px;
+}
+
+.editor-surface {
+  min-height: 100%;
+  overflow: clip;
+}
+
+/* Preview is a normal column with an internal scroll — never absolute/fixed over content. */
+.preview-sticky {
+  position: relative;
+  inset: auto;
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+}
+
+.preview-surface {
+  height: 100%;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Prevent a sticky editor action bar from escaping its own pane. */
+.editor-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+@media (max-width: 1179px) {
+  .editor-layout,
+  .news-layout,
+  .education-layout {
+    grid-template-columns: minmax(220px, 245px) minmax(0, 1fr);
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .content-library,
+  .editor-workspace {
+    height: auto;
+    max-height: none;
+  }
+
+  .content-library {
+    max-height: calc(100vh - 190px);
+  }
+
+  .editor-workspace {
+    max-height: calc(100vh - 190px);
+  }
+
+  .preview-sticky {
+    grid-column: 1 / -1;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .preview-surface {
+    height: auto;
+    max-height: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .editor-layout,
+  .news-layout,
+  .education-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .content-library,
+  .editor-workspace,
+  .preview-sticky,
+  .preview-surface {
+    height: auto;
+    max-height: none;
+  }
+
+  .content-library {
+    max-height: 380px;
+  }
+
+  .editor-workspace {
+    overflow: visible;
+  }
+}

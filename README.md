@@ -1,45 +1,25 @@
-# Birustock Producer
+# Birustock Producer — V14 isolated 3-column workspace
 
-Internal Producer/CMS application for Birustock. This repo is intentionally separated from the customer website repo.
+Target repo: `jagoananalis/birustockidv1` (Producer only).
 
-## Stack
-- TanStack Start + React + TypeScript
-- Vite + Tailwind CSS
-- Neon Postgres in production
-- PGlite fallback in local development when `DATABASE_URL` is not set
+This patch fixes the overlap problem by giving each desktop pane its own scroll context:
 
-## Environment
-Set these in Vercel/local environment:
+- Sidebar: existing Producer navigation.
+- Library: fixed grid column, internal scroll only.
+- Editor: fixed grid column, internal vertical scroll only.
+- Public Preview: fixed grid column, internal vertical scroll only.
 
-```env
-DATABASE_URL=...
-FOUNDER_PIN=...
-FOUNDER_SESSION_SECRET=...
-VITE_PUBLIC_SITE_URL=https://birustock.id
-```
+No pane uses absolute/fixed positioning to float over another pane.
 
-The current authentication is a protected PIN + signed session token. Replace it later with role-based user auth when the Producer team model is ready.
+Files to replace:
+- `src/styles.css`
+- `src/routes/studio.tsx` (included for parity with V13; no functional logic change intended)
 
-## Run
+Recommended: replace `styles.css` first. `studio.tsx` is not required if the current V13 code already matches the bundled layout.
 
-```bash
-npm install
-npm run dev
-```
-
-Open `http://localhost:8080/studio`.
-
-Build:
+Verify before commit:
 
 ```bash
 npm run typecheck
 npm run build
 ```
-
-`npm run build` applies pending migrations when `DATABASE_URL` is available.
-
-## Intended deployment
-- Customer app: `birustockidv2`
-- Producer app: this repo
-- Shared data source: same Neon Postgres database
-- Suggested Producer domain: `producer.birustock.id`
