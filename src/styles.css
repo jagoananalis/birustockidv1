@@ -1304,3 +1304,275 @@
     overflow: visible;
   }
 }
+
+
+/* V15 — proportional workspace + clean preview cards
+   Goal: keep desktop 3-column layout usable at normal laptop widths and
+   prevent any card/footer from covering adjacent content. */
+.editor-page,
+.producer-page.editor-page {
+  min-width: 0;
+}
+
+.editor-layout,
+.news-layout,
+.education-layout {
+  /* The middle editor must have enough room to remain readable. */
+  grid-template-columns: 260px minmax(500px, 1fr) 360px;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Each pane is a self-contained layout box. Nothing can paint across siblings. */
+.editor-layout > .content-library,
+.editor-layout > .editor-workspace,
+.editor-layout > .preview-sticky,
+.news-layout > .content-library,
+.news-layout > .editor-workspace,
+.news-layout > .preview-sticky,
+.education-layout > .content-library,
+.education-layout > .editor-workspace,
+.education-layout > .preview-sticky {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Do not let a sticky footer create the impression that a card is being covered. */
+.editor-action-bar {
+  position: static !important;
+  bottom: auto !important;
+  z-index: auto !important;
+  background: #0b1018;
+  backdrop-filter: none;
+}
+
+/* Keep the editor as ordinary document flow inside its own scroll pane. */
+.editor-surface {
+  overflow: visible;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* Preview pane: stable outer frame, inner card follows the available width. */
+.preview-sticky {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-surface {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.preview-head {
+  flex: 0 0 auto;
+}
+
+.public-preview {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.public-preview-cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto !important;
+  min-height: 0;
+  max-height: none;
+  border-radius: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.public-preview-body {
+  min-width: 0;
+  padding: 13px 1px 5px;
+  box-sizing: border-box;
+}
+
+.preview-chip-row {
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.preview-chip,
+.preview-meta {
+  min-width: 0;
+}
+
+.preview-meta {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.preview-bias {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.public-preview-body h4 {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.public-preview-body > p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.preview-level-grid {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preview-level {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.preview-level strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.preview-mini-block {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.preview-mini-block p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* News preview uses the same proportional media frame as other public cards.
+   This avoids a very tall empty cover when the preview column is narrow. */
+.news-cover {
+  width: 100%;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+}
+
+.news-preview .public-preview-body {
+  padding-top: 13px;
+}
+
+.news-preview .public-preview-body h4 {
+  font-size: 18px;
+  line-height: 1.18;
+}
+
+.learning-preview .public-preview-cover {
+  width: 100%;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+}
+
+/* Reduce visual density without shrinking typography into unreadable sizes. */
+.preview-surface .btn-block {
+  margin-top: 12px;
+}
+
+/* At this width the 3-col system becomes too cramped. Prefer a clean 2-pane
+   editor + library, with preview as a full-width sibling below. */
+@media (max-width: 1319px) {
+  .editor-layout,
+  .news-layout,
+  .education-layout {
+    grid-template-columns: 250px minmax(0, 1fr);
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .content-library {
+    height: calc(100vh - 190px);
+    max-height: calc(100vh - 190px);
+  }
+
+  .editor-workspace {
+    height: calc(100vh - 190px);
+    max-height: calc(100vh - 190px);
+    overflow-y: auto;
+  }
+
+  .preview-sticky {
+    grid-column: 1 / -1;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .preview-surface {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .preview-surface .public-preview {
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
+
+/* Laptop / tablet: keep every section in normal flow. */
+@media (max-width: 900px) {
+  .editor-layout,
+  .news-layout,
+  .education-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .content-library,
+  .editor-workspace,
+  .preview-sticky,
+  .preview-surface {
+    height: auto;
+    max-height: none;
+  }
+
+  .content-library {
+    max-height: 380px;
+  }
+
+  .editor-workspace {
+    overflow: visible;
+  }
+
+  .preview-surface .public-preview {
+    max-width: none;
+  }
+
+  .preview-level-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .preview-level-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-preview {
+    padding: 10px;
+  }
+}
