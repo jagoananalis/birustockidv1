@@ -396,7 +396,6 @@ function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { t
   const [statusFilter, setStatusFilter] = useState<"ALL" | AnalisisStatus>("ALL");
   const [section, setSection] = useState<AnalysisSection>("overview");
   const [error, setError] = useState("");
-  const [previewOpen, setPreviewOpen] = useState(true);
   const filtered = useMemo(() => items.filter((item) => {
     const matchesText = `${item.title} ${item.pair} ${item.bias}`.toLowerCase().includes(query.toLowerCase());
     const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
@@ -447,7 +446,7 @@ function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { t
           <form onSubmit={(e) => { e.preventDefault(); void save(form.status); }} className="surface-card editor-surface">
             <div className="editor-toolbar">
               <div className="editor-toolbar-main"><span className="panel-eyebrow">{form.id ? `Analisis #${form.id}` : "Konten baru"}</span><h2>{form.title || "Buat Analisis"}</h2><div className="editor-meta-row"><span className={cn("status-pill", STATUS_META[form.status].className)}>{STATUS_META[form.status].label}</span><span>Terakhir disimpan saat aksi terakhir</span></div></div>
-              <div className="editor-toolbar-actions"><button type="button" className="btn btn-outline" onClick={() => setPreviewOpen((v) => !v)}><EyeIcon /> {previewOpen ? "Sembunyikan preview" : "Tampilkan preview"}</button><button type="button" className="btn btn-outline" onClick={() => window.open(`${PUBLIC_SITE_URL}/analisis/${form.slug || ""}`, "_blank")} disabled={!form.slug}>Lihat publik <ArrowUpRight size={15} /></button></div>
+              <div className="editor-toolbar-actions"><span className="preview-mode-badge"><EyeIcon /> Preview permanen</span><button type="button" className="btn btn-outline" onClick={() => window.open(`${PUBLIC_SITE_URL}/analisis/${form.slug || ""}`, "_blank")} disabled={!form.slug}>Lihat publik <ArrowUpRight size={15} /></button></div>
             </div>
             {error ? <div className="inline-error">{error}</div> : null}
             <EditorTabs items={["overview", "content", "market", "scenario", "media"] as AnalysisSection[]} active={section} onChange={setSection} labels={{ overview: "Detail", content: "Konten", market: "Market", scenario: "Skenario", media: "Media" }} />
@@ -466,7 +465,7 @@ function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { t
           </form>
         </section>
 
-        {previewOpen ? <aside className="preview-sticky"><div className="surface-card preview-surface"><div className="preview-head"><div><span className="panel-eyebrow">Preview Publik</span><h3>Card Analisis</h3><p>Tampilan yang mendekati halaman customer.</p></div><button type="button" className="icon-btn subtle-icon" onClick={() => setPreviewOpen(false)} aria-label="Tutup preview"><X size={16} /></button></div><AnalisisPreview form={form} /></div></aside> : null}
+        <aside className="preview-sticky"><div className="surface-card preview-surface"><div className="preview-head"><div><span className="panel-eyebrow">Preview Publik</span><h3>Card Analisis</h3><p>Selalu terlihat agar editing dan hasil akhir bisa dibandingkan langsung.</p></div></div><AnalisisPreview form={form} /></div></aside>
       </div>
     </div>
   );

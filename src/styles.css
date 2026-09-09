@@ -338,7 +338,40 @@
 
 @keyframes shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
 
-@media (max-width: 1260px) {
+/* Three-column editorial workspace: library, editor, and public preview stay visible on desktop. */
+.editor-layout {
+  grid-template-columns: minmax(230px, 260px) minmax(0, 1fr) minmax(300px, 330px);
+  gap: 14px;
+  align-items: start;
+}
+.news-layout,
+.education-layout {
+  grid-template-columns: minmax(230px, 270px) minmax(0, 1fr) minmax(290px, 320px);
+}
+.preview-sticky {
+  position: sticky;
+  top: 88px;
+  max-height: calc(100vh - 112px);
+}
+.preview-surface {
+  max-height: calc(100vh - 112px);
+  overflow: auto;
+}
+.preview-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #1a3558;
+  border-radius: 10px;
+  background: #0d1d33;
+  color: #4da3ff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+@media (max-width: 1179px) {
   .producer-layout { grid-template-columns:215px minmax(0,1fr); }
   .editor-layout { grid-template-columns:240px minmax(0,1fr); }
   .preview-sticky { grid-column:1 / -1; position:static; max-height:none; }
@@ -943,7 +976,40 @@
   }
 }
 
-@media (max-width: 1260px) {
+/* Three-column editorial workspace: library, editor, and public preview stay visible on desktop. */
+.editor-layout {
+  grid-template-columns: minmax(230px, 260px) minmax(0, 1fr) minmax(300px, 330px);
+  gap: 14px;
+  align-items: start;
+}
+.news-layout,
+.education-layout {
+  grid-template-columns: minmax(230px, 270px) minmax(0, 1fr) minmax(290px, 320px);
+}
+.preview-sticky {
+  position: sticky;
+  top: 88px;
+  max-height: calc(100vh - 112px);
+}
+.preview-surface {
+  max-height: calc(100vh - 112px);
+  overflow: auto;
+}
+.preview-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #1a3558;
+  border-radius: 10px;
+  background: #0d1d33;
+  color: #4da3ff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+@media (max-width: 1179px) {
   .producer-layout { padding-inline: 16px; }
   .editor-layout { grid-template-columns: 235px minmax(0, 1fr); }
   .preview-sticky { grid-column: 1 / -1; }
