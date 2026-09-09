@@ -1,25 +1,15 @@
-# Birustock Producer — V14 isolated 3-column workspace
+# Birustock Producer V16 — Adaptive 3-Column Layout
 
 Target repo: `jagoananalis/birustockidv1` (Producer only).
 
-This patch fixes the overlap problem by giving each desktop pane its own scroll context:
+V16 fixes the remaining clipping/proportion issue seen on laptop/zoomed browser widths.
 
-- Sidebar: existing Producer navigation.
-- Library: fixed grid column, internal scroll only.
-- Editor: fixed grid column, internal vertical scroll only.
-- Public Preview: fixed grid column, internal vertical scroll only.
+- Desktop with enough width: Library 220px | Editor >=460px | Preview 300px.
+- When the viewport cannot safely fit those minima: switches to Library + Editor, with Preview below.
+- Preview, editor, and library never overlap or escape their grid column.
+- Preview cover remains 16:9 and text is constrained/wrapped.
+- Editor header/action bar can wrap instead of overflowing horizontally.
+- No database logic or route files are changed.
 
-No pane uses absolute/fixed positioning to float over another pane.
-
-Files to replace:
-- `src/styles.css`
-- `src/routes/studio.tsx` (included for parity with V13; no functional logic change intended)
-
-Recommended: replace `styles.css` first. `studio.tsx` is not required if the current V13 code already matches the bundled layout.
-
-Verify before commit:
-
-```bash
-npm run typecheck
-npm run build
-```
+Install: replace `src/styles.css` with the included file.
+Then run `npm run typecheck` and `npm run build` before committing.
