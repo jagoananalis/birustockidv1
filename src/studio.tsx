@@ -62,6 +62,9 @@ const TOKEN_KEY = "bs-producer-token";
 const PUBLIC_SITE_URL = import.meta.env.VITE_PUBLIC_SITE_URL || "http://localhost:8080";
 const CACHE_PREFIX = "bs-producer-cache-v1";
 
+type ToastKind = "loading" | "success" | "error";
+type Notify = (kind: ToastKind, title: string, message: string) => void;
+
 function usePersistentState<T>(key: string, initialValue: T | (() => T)) {
   const [value, setValue] = useState<T>(initialValue);
   const [hydrated, setHydrated] = useState(false);
@@ -205,8 +208,19 @@ function StudioPage() {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [toast, setToast] = useState<{ kind: ToastKind; title: string; message: string } | null>(null);
   const [selection, setSelection] = usePersistentState<{ tab: Tab; id: number } | null>("studio:selection", null);
   const globalSearchRef = useRef<HTMLInputElement | null>(null);
+
+  function notify(kind: ToastKind, title: string, message: string) {
+    setToast({ kind, title, message });
+  }
+
+  useEffect(() => {
+    if (!toast || toast.kind === "loading") return;
+    const timer = window.setTimeout(() => setToast(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const globalResults = useMemo(() => {
     const q = globalQuery.trim().toLowerCase();
@@ -332,6 +346,7 @@ function StudioPage() {
 
   return (
     <main className="producer-app">
+      {toast ? <ActionToast toast={toast} onClose={() => setToast(null)} /> : null}
       <header className="producer-topbar">
         <div className="producer-topbar-inner">
           <div className="producer-topbar-brand"><button type="button" className="producer-mobile-trigger" onClick={() => setMobileNav(true)} aria-label="Buka navigasi"><Menu size={19} /></button><BrandLockup /></div>
@@ -379,9 +394,9 @@ function StudioPage() {
         <section className="producer-main">
           {globalError ? <div className="workspace-alert"><span>{globalError}</span><button type="button" onClick={() => void refresh()}><RefreshCw size={14} /> Refresh</button></div> : null}
           {tab === "dashboard" ? <Dashboard analisis={analisis} news={news} edukasi={edukasi} onSelect={setTab} /> : null}
-          {tab === "analisis" ? <AnalisisStudio token={token} items={analisis} onChange={refresh} busy={busy} setBusy={setBusy} selectId={selection?.tab === "analisis" ? selection.id : null} /> : null}
-          {tab === "news" ? <NewsStudio token={token} items={news} onChange={refresh} busy={busy} setBusy={setBusy} selectId={selection?.tab === "news" ? selection.id : null} /> : null}
-          {tab === "edukasi" ? <EdukasiStudio token={token} items={edukasi} onChange={refresh} busy={busy} setBusy={setBusy} selectId={selection?.tab === "edukasi" ? selection.id : null} /> : null}
+          {tab === "analisis" ? <AnalisisStudio token={token} items={analisis} onChange={refresh} busy={busy} setBusy={setBusy} onNotify={notify} selectId={selection?.tab === "analisis" ? selection.id : null} /> : null}
+          {tab === "news" ? <NewsStudio token={token} items={news} onChange={refresh} busy={busy} setBusy={setBusy} onNotify={notify} selectId={selection?.tab === "news" ? selection.id : null} /> : null}
+          {tab === "edukasi" ? <EdukasiStudio token={token} items={edukasi} onChange={refresh} busy={busy} setBusy={setBusy} onNotify={notify} selectId={selection?.tab === "edukasi" ? selection.id : null} /> : null}
           {tab === "settings" ? <SettingsPage /> : null}
         </section>
       </div>
@@ -430,7 +445,7 @@ function MetricCard({ icon, label, value, detail, onClick }: { icon: ReactNode; 
 function LegendRow({ dot, label, value }: { dot: string; label: string; value: number }) { return <div className="legend-row"><span className={cn("legend-dot", dot)} /> <span>{label}</span><strong>{value}</strong></div>; }
 function QuickAction({ icon, label, detail, onClick }: { icon: ReactNode; label: string; detail: string; onClick: () => void }) { return <button type="button" className="quick-action" onClick={onClick}><span className="quick-action-icon">{icon}</span><span><strong>{label}</strong><small>{detail}</small></span><ChevronRight size={15} /></button>; }
 
-function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { token: string; items: AnalisisItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; selectId?: number | null }) {
+function AnalisisStudio({ token, items, onChange, busy, setBusy, onNotify, selectId }: { token: string; items: AnalisisItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; onNotify: Notify; selectId?: number | null }) {
   const [form, setForm, formHydrated] = usePersistentState<AnalisisForm>("analisis:form", emptyAnalisis);
   const [query, setQuery] = usePersistentState<string>("analisis:query", "");
   const [statusFilter, setStatusFilter] = usePersistentState<"ALL" | AnalisisStatus>("analisis:status-filter", "ALL");
@@ -459,17 +474,36 @@ function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { t
   async function save(status: AnalisisStatus) {
     setError("");
     setBusy(true);
-    try { await saveAnalisis({ data: { token, ...form, status } }); setForm((prev) => ({ ...prev, status })); clearPersistentState("analisis:form"); await onChange(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); }
-    finally { setBusy(false); }
+    const action = status === "PUBLISHED" ? (form.id ? "Update" : "Publish") : status === "DRAFT" ? "Simpan draft" : "Arsipkan";
+    onNotify("loading", `${action} sedang diproses`, "Menyimpan perubahan ke database Neon…");
+    try {
+      await saveAnalisis({ data: { token, ...form, status } });
+      setForm((prev) => ({ ...prev, status }));
+      clearPersistentState("analisis:form");
+      await onChange();
+      onNotify("success", `${action} berhasil`, "Perubahan sudah tersimpan di database.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menyimpan.";
+      setError(message);
+      onNotify("error", `${action} gagal`, message);
+    } finally { setBusy(false); }
   }
 
   async function remove() {
     if (!form.id || !confirm("Hapus analisis ini? Data akan dihapus permanen dari database.")) return;
     setBusy(true);
-    try { await deleteAnalisis({ data: { token, id: form.id } }); clearPersistentState("analisis:form"); setForm(emptyAnalisis()); await onChange(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); }
-    finally { setBusy(false); }
+    onNotify("loading", "Menghapus analisis", "Menghapus konten dari database Neon…");
+    try {
+      await deleteAnalisis({ data: { token, id: form.id } });
+      clearPersistentState("analisis:form");
+      setForm(emptyAnalisis());
+      await onChange();
+      onNotify("success", "Analisis berhasil dihapus", "Konten sudah dihapus dari database.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus.";
+      setError(message);
+      onNotify("error", "Hapus analisis gagal", message);
+    } finally { setBusy(false); }
   }
 
   return (
@@ -493,7 +527,7 @@ function AnalisisStudio({ token, items, onChange, busy, setBusy, selectId }: { t
             {error ? <div className="inline-error">{error}</div> : null}
             <EditorTabs items={["overview", "content", "market", "scenario", "media"] as AnalysisSection[]} active={section} onChange={setSection} labels={{ overview: "Detail", content: "Konten", market: "Market", scenario: "Skenario", media: "Media" }} />
 
-            {section === "overview" ? <div className="editor-section-grid two-col"><FormSection icon={<BarChart3 size={17} />} title="Informasi Market" description="Identitas analisis yang tampil di metadata."><div className="field-grid two"><Field label="Pair"><select className="control" value={form.pair} onChange={(e) => setForm({ ...form, pair: e.target.value })}><option>XAU/USD</option><option>BTC/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select></Field><Field label="Timeframe"><select className="control" value={form.timeframe} onChange={(e) => setForm({ ...form, timeframe: e.target.value })}><option>M15</option><option>H1</option><option>H4</option><option>D1</option><option>W1</option></select></Field><Field label="Bias"><select className="control" value={form.bias} onChange={(e) => setForm({ ...form, bias: e.target.value as AnalisisForm["bias"] })}><option>Bullish</option><option>Bearish</option><option>Netral</option></select></Field><Field label="Tanggal tayang"><input className="control" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} /></Field></div></FormSection><FormSection icon={<Clock3 size={17} />} title="Workflow" description="Tentukan status publishing konten."><div className="field-grid two"><Field label="Status"><select className="control" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as AnalisisStatus })}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option></select></Field><Field label="Aksen kartu"><select className="control" value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value as Accent })}><option value="blue">Biru</option><option value="orange">Orange</option><option value="green">Hijau</option><option value="red">Merah</option></select></Field></div></FormSection><FormSection icon={<PencilLine size={17} />} title="Judul & Ringkasan" description="Buat headline yang mudah dipahami dan summary yang singkat."><Field label="Judul"><input className="control control-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Contoh: XAU/USD — Potensi Bullish Lanjutan" required /></Field><Field label="Ringkasan"><textarea className="control" rows={5} maxLength={500} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} placeholder="Ringkasan analisis yang tampil pada listing dan preview..." required /><span className="field-help">{form.excerpt.length}/500 karakter</span></Field></FormSection></div> : null}
+            {section === "overview" ? <div className="editor-section-grid two-col"><FormSection icon={<BarChart3 size={17} />} title="Informasi Market" description="Identitas analisis yang tampil di metadata."><div className="field-grid two"><Field label="Pair"><select className="control" value={form.pair} onChange={(e) => setForm({ ...form, pair: e.target.value })}><option>XAU/USD</option><option>BTC/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select></Field><Field label="Timeframe"><select className="control" value={form.timeframe} onChange={(e) => setForm({ ...form, timeframe: e.target.value })}><option>M15</option><option>H1</option><option>H4</option><option>D1</option><option>W1</option></select></Field><Field label="Bias"><select className="control" value={form.bias} onChange={(e) => setForm({ ...form, bias: e.target.value as AnalisisForm["bias"] })}><option>Bullish</option><option>Bearish</option><option>Netral</option></select></Field><Field label="Tanggal tayang"><input className="control" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} /></Field></div></FormSection><FormSection icon={<Clock3 size={17} />} title="Workflow" description="Tentukan status publishing konten."><div className="field-grid two"><Field label="Status"><select className="control" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as AnalisisStatus })}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option></select></Field><Field label="Aksen kartu"><select className="control" value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value as Accent })}><option value="blue">Biru</option><option value="orange">Orange</option><option value="green">Hijau</option><option value="red">Merah</option></select></Field></div></FormSection><FormSection icon={<PencilLine size={17} />} title="Judul & Ringkasan" description="Buat headline yang mudah dipahami dan summary yang singkat."><Field label="Judul"><input className="control control-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Contoh: XAU/USD — Potensi Bullish Lanjutan" required /></Field><Field label="Ringkasan"><textarea className="control" rows={7} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} placeholder="Ringkasan analisis yang tampil pada listing dan preview..." required /><span className="field-help">{form.excerpt.trim() ? form.excerpt.trim().split(/\s+/).filter(Boolean).length : 0}/600 kata</span></Field></FormSection></div> : null}
 
             {section === "content" ? <FormSection icon={<FileText size={17} />} title="Konten Utama" description="Tulis analisis dengan paragraf yang pendek dan mudah dipindai."><SimpleEditor value={form.body} onChange={(body) => setForm({ ...form, body })} placeholder="Tulis analisis market di sini..." /></FormSection> : null}
 
@@ -557,19 +591,51 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
   </div>;
 }
 
-function NewsStudio({ token, items, onChange, busy, setBusy, selectId }: { token: string; items: NewsItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; selectId?: number | null }) {
+function NewsStudio({ token, items, onChange, busy, setBusy, onNotify, selectId }: { token: string; items: NewsItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; onNotify: Notify; selectId?: number | null }) {
   const [form, setForm, formHydrated] = usePersistentState<NewsForm>("news:form", emptyNews);
   const [query, setQuery] = usePersistentState<string>("news:query", "");
   const [section, setSection] = usePersistentState<NewsSection>("news:section", "overview");
   const [error, setError] = useState("");
   const filtered = items.filter((item) => `${item.title} ${item.category}`.toLowerCase().includes(query.toLowerCase()));
   function fill(item: NewsItem) { setForm({ id: item.id, slug: item.slug, category: item.category, title: item.title, excerpt: item.excerpt, body: item.body.join("\n\n"), thumb: item.thumb, publishedAt: item.publishedAt }); setSection("overview"); setError(""); }
-  async function submit(e: FormEvent) { e.preventDefault(); setError(""); setBusy(true); try { await saveNews({ data: { token, ...form } }); clearPersistentState("news:form"); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } }
-  async function remove() { if (!form.id || !confirm("Hapus news ini?")) return; setBusy(true); try { await deleteNews({ data: { token, id: form.id } }); clearPersistentState("news:form"); setForm(emptyNews()); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } }
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    const action = form.id ? "Update news" : "Publish news";
+    onNotify("loading", `${action} sedang diproses`, "Menyimpan perubahan ke database Neon…");
+    try {
+      await saveNews({ data: { token, ...form } });
+      clearPersistentState("news:form");
+      await onChange();
+      onNotify("success", `${action} berhasil`, "Konten sudah tersimpan.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menyimpan.";
+      setError(message);
+      onNotify("error", `${action} gagal`, message);
+    } finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!form.id || !confirm("Hapus news ini?")) return;
+    setBusy(true);
+    onNotify("loading", "Menghapus news", "Menghapus konten dari database Neon…");
+    try {
+      await deleteNews({ data: { token, id: form.id } });
+      clearPersistentState("news:form");
+      setForm(emptyNews());
+      await onChange();
+      onNotify("success", "News berhasil dihapus", "Konten sudah dihapus dari database.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus.";
+      setError(message);
+      onNotify("error", "Hapus news gagal", message);
+    } finally { setBusy(false); }
+  }
   return <div className="producer-page editor-page"><PageHeader eyebrow="News CMS" title="News" description="Kelola berita dan editorial dengan alur kerja yang fokus dan mudah dipindai."><button type="button" className="btn btn-primary" onClick={() => { setForm(emptyNews()); setSection("overview"); }}><Plus size={16} /> News Baru</button></PageHeader><div className="editor-layout news-layout"><aside className="surface-card content-library"><div className="content-library-head"><div><span className="panel-eyebrow">Editorial library</span><h2>Semua News</h2><p>{items.length} konten</p></div><button type="button" className="icon-btn subtle-icon" onClick={() => setForm(emptyNews())}><Plus size={17} /></button></div><div className="library-search"><Search size={15} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari judul..." /></div><div className="content-library-scroll">{filtered.map((item) => <button key={item.id} type="button" className={cn("library-item", form.id === item.id && "is-selected")} onClick={() => fill(item)}><Thumb src="" fallback={item.category} className="library-thumb" /><span className="library-item-main"><span className="library-item-meta"><strong>{item.category}</strong><span className="status-pill status-published">Published</span></span><strong className="library-item-title">{item.title}</strong><small>{formatIdDate(item.publishedAt)}</small></span><ChevronRight size={15} /></button>)}{!filtered.length ? <EmptyState text="Tidak ada news yang cocok." /> : null}</div></aside><section className="editor-workspace"><form className="surface-card editor-surface" onSubmit={submit}><div className="editor-toolbar"><div className="editor-toolbar-main"><span className="panel-eyebrow">{form.id ? `News #${form.id}` : "Konten baru"}</span><h2>{form.title || "Buat News"}</h2><div className="editor-meta-row"><span className="status-pill status-published">Published</span><span>Draft lokal tersimpan otomatis</span></div></div><div className="editor-toolbar-actions"><button type="button" className="btn btn-outline" onClick={() => window.open(`${PUBLIC_SITE_URL}/news/${form.slug || ""}`, "_blank")} disabled={!form.slug}>Lihat publik <ArrowUpRight size={15} /></button></div></div>{error ? <div className="inline-error">{error}</div> : null}<EditorTabs items={["overview", "content", "media"] as NewsSection[]} active={section} onChange={setSection} labels={{ overview: "Detail", content: "Konten", media: "Media" }} />{section === "overview" ? <FormSection icon={<Newspaper size={17} />} title="Editorial" description="Metadata berita yang akan tampil pada listing."><div className="field-grid two"><Field label="Kategori"><input className="control" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required /></Field><Field label="Visual"><select className="control" value={form.thumb} onChange={(e) => setForm({ ...form, thumb: e.target.value as NewsThumb })}><option value="capitol">Capitol</option><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option></select></Field></div><Field label="Tanggal tayang"><input className="control" type="date" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} /></Field><Field label="Judul"><input className="control control-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Ringkasan"><textarea className="control" rows={4} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} required /></Field></FormSection> : null}{section === "content" ? <FormSection icon={<FileText size={17} />} title="Konten Artikel" description="Susun artikel dalam paragraf yang singkat dan jelas."><SimpleEditor value={form.body} onChange={(body) => setForm({ ...form, body })} placeholder="Tulis isi artikel..." /></FormSection> : null}{section === "media" ? <FormSection icon={<ImageIcon size={17} />} title="Visual" description="Pengaturan visual saat ini menggunakan pilihan thumbnail yang tersedia."><div className="media-note"><div className="media-note-icon"><ImageIcon size={18} /></div><div><strong>{form.thumb}</strong><span>Thumbnail source dari preset editorial.</span></div></div></FormSection> : null}<div className="editor-action-bar"><div className="editor-action-left">{form.id ? <button type="button" className="btn btn-danger-outline" onClick={() => void remove()} disabled={busy}><Trash2 size={15} /> Hapus</button> : null}</div><div className="editor-action-right"><button type="button" className="btn btn-outline" onClick={() => setForm(emptyNews())}>Batal</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan News"}</button></div></div></form></section><aside className="preview-sticky"><div className="surface-card preview-surface"><div className="preview-head"><div><span className="panel-eyebrow">Preview Publik</span><h3>News Card</h3></div></div><article className="public-preview news-preview"><div className="public-preview-cover news-cover"><span>{form.category || "Kategori"}</span></div><div className="public-preview-body"><span className="preview-chip">{form.category || "Kategori"}</span><h4>{form.title || "Judul news"}</h4><p>{form.excerpt || "Ringkasan news akan tampil di sini."}</p><div className="preview-meta-row"><Clock3 size={14} />{formatIdDate(form.publishedAt)}</div></div></article></div></aside></div></div>;
 }
 
-function EdukasiStudio({ token, items, onChange, busy, setBusy, selectId }: { token: string; items: EdukasiItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; selectId?: number | null }) {
+function EdukasiStudio({ token, items, onChange, busy, setBusy, onNotify, selectId }: { token: string; items: EdukasiItem[]; onChange: () => Promise<void>; busy: boolean; setBusy: (v: boolean) => void; onNotify: Notify; selectId?: number | null }) {
   const [form, setForm, formHydrated] = usePersistentState<EdukasiForm>("edukasi:form", emptyEdukasi);
   const [query, setQuery] = usePersistentState<string>("edukasi:query", "");
   const [section, setSection] = usePersistentState<EducationSection>("edukasi:section", "overview");
@@ -582,9 +648,52 @@ function EdukasiStudio({ token, items, onChange, busy, setBusy, selectId }: { to
     if (item) fill(item);
   }, [formHydrated, items, selectId, form.id]);
   function fill(item: EdukasiItem) { setForm({ id: item.id, slug: item.slug, level: item.level, title: item.title, description: item.description, body: item.body, imageUrl: item.imageUrl }); setSection("overview"); setError(""); }
-  async function submit(e: FormEvent) { e.preventDefault(); setError(""); setBusy(true); try { await saveEdukasi({ data: { token, ...form } }); clearPersistentState("edukasi:form"); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menyimpan."); } finally { setBusy(false); } }
-  async function remove() { if (!form.id || !confirm("Hapus materi ini?")) return; setBusy(true); try { await deleteEdukasi({ data: { token, id: form.id } }); clearPersistentState("edukasi:form"); setForm(emptyEdukasi()); await onChange(); } catch (err) { setError(err instanceof Error ? err.message : "Gagal menghapus."); } finally { setBusy(false); } }
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    const action = form.id ? "Update edukasi" : "Publish edukasi";
+    onNotify("loading", `${action} sedang diproses`, "Menyimpan perubahan ke database Neon…");
+    try {
+      await saveEdukasi({ data: { token, ...form } });
+      clearPersistentState("edukasi:form");
+      await onChange();
+      onNotify("success", `${action} berhasil`, "Materi sudah tersimpan.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menyimpan.";
+      setError(message);
+      onNotify("error", `${action} gagal`, message);
+    } finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!form.id || !confirm("Hapus materi ini?")) return;
+    setBusy(true);
+    onNotify("loading", "Menghapus edukasi", "Menghapus materi dari database Neon…");
+    try {
+      await deleteEdukasi({ data: { token, id: form.id } });
+      clearPersistentState("edukasi:form");
+      setForm(emptyEdukasi());
+      await onChange();
+      onNotify("success", "Edukasi berhasil dihapus", "Materi sudah dihapus dari database.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus.";
+      setError(message);
+      onNotify("error", "Hapus edukasi gagal", message);
+    } finally { setBusy(false); }
+  }
   return <div className="producer-page editor-page"><PageHeader eyebrow="Edukasi CMS" title="Edukasi" description="Susun materi belajar dengan struktur yang jelas, fokus, dan nyaman untuk diedit."><button type="button" className="btn btn-primary" onClick={() => { setForm(emptyEdukasi()); setSection("overview"); }}><Plus size={16} /> Edukasi Baru</button></PageHeader><div className="editor-layout education-layout"><aside className="surface-card content-library"><div className="content-library-head"><div><span className="panel-eyebrow">Learning library</span><h2>Semua Edukasi</h2><p>{items.length} materi</p></div><button type="button" className="icon-btn subtle-icon" onClick={() => setForm(emptyEdukasi())}><Plus size={17} /></button></div><div className="library-search"><Search size={15} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari materi..." /></div><div className="level-filter-row"><span className="filter-pill is-active">Semua</span><span className="filter-pill">Pemula</span><span className="filter-pill">Menengah</span><span className="filter-pill">Lanjutan</span></div><div className="content-library-scroll">{filtered.map((item) => <button key={item.id} type="button" className={cn("library-item", form.id === item.id && "is-selected")} onClick={() => fill(item)}><Thumb src={item.imageUrl} fallback={item.level} className="library-thumb" /><span className="library-item-main"><span className="library-item-meta"><strong>{item.level}</strong><span className="status-pill status-published">Published</span></span><strong className="library-item-title">{item.title}</strong><small>Materi belajar</small></span><ChevronRight size={15} /></button>)}{!filtered.length ? <EmptyState text="Tidak ada materi yang cocok." /> : null}</div></aside><section className="editor-workspace"><form className="surface-card editor-surface" onSubmit={submit}><div className="editor-toolbar"><div className="editor-toolbar-main"><span className="panel-eyebrow">{form.id ? `Materi #${form.id}` : "Konten baru"}</span><h2>{form.title || "Buat Materi"}</h2><div className="editor-meta-row"><span className="status-pill status-published">Published</span><span>Draft lokal tersimpan otomatis</span></div></div><div className="editor-toolbar-actions"><button type="button" className="btn btn-outline" onClick={() => window.open(`${PUBLIC_SITE_URL}/edukasi/${form.slug || ""}`, "_blank")} disabled={!form.slug}>Lihat publik <ArrowUpRight size={15} /></button></div></div>{error ? <div className="inline-error">{error}</div> : null}<EditorTabs items={["overview", "content", "media"] as EducationSection[]} active={section} onChange={setSection} labels={{ overview: "Detail", content: "Konten", media: "Media" }} />{section === "overview" ? <FormSection icon={<BookOpen size={17} />} title="Informasi Materi" description="Tetapkan level dan headline materi."><Field label="Level"><select className="control" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as EduLevel })}><option>Pemula</option><option>Menengah</option><option>Lanjutan</option></select></Field><Field label="Judul"><input className="control control-lg" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field><Field label="Deskripsi"><textarea className="control" rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required /></Field></FormSection> : null}{section === "content" ? <FormSection icon={<FileText size={17} />} title="Isi Materi" description="Jaga struktur tulisan per bagian agar mudah dipelajari."><SimpleEditor value={form.body} onChange={(body) => setForm({ ...form, body })} placeholder="Tulis materi pembelajaran..." /></FormSection> : null}{section === "media" ? <FormSection icon={<ImageIcon size={17} />} title="Cover Materi" description="Tambahkan visual cover agar materi lebih mudah dikenali."><ImageField value={form.imageUrl} onChange={(imageUrl) => setForm({ ...form, imageUrl })} /></FormSection> : null}<div className="editor-action-bar"><div className="editor-action-left">{form.id ? <button type="button" className="btn btn-danger-outline" onClick={() => void remove()} disabled={busy}><Trash2 size={15} /> Hapus</button> : null}</div><div className="editor-action-right"><button type="button" className="btn btn-outline" onClick={() => setForm(emptyEdukasi())}>Batal</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan Materi"}</button></div></div></form></section><aside className="preview-sticky"><div className="surface-card preview-surface"><div className="preview-head"><div><span className="panel-eyebrow">Preview Publik</span><h3>Learning Card</h3></div></div><article className="public-preview learning-preview"><div className="public-preview-cover">{form.imageUrl ? <PreviewImage src={form.imageUrl} alt={form.title || form.level} /> : <div className="preview-image-empty"><BookOpen size={28} /><span>Belum ada gambar</span></div>}</div><div className="public-preview-body"><span className="preview-chip">{form.level}</span><h4>{form.title || "Judul materi"}</h4><p>{form.description || "Deskripsi materi akan tampil di sini."}</p><div className="preview-mini-block"><span>Isi materi</span><p>{form.body ? `${form.body.slice(0, 170)}${form.body.length > 170 ? "…" : ""}` : "Belum ada isi materi."}</p></div><button type="button" className="btn btn-primary btn-block" disabled>Mulai Belajar</button></div></article></div></aside></div></div>;
+}
+
+function ActionToast({ toast, onClose }: { toast: { kind: ToastKind; title: string; message: string }; onClose: () => void }) {
+  const icon = toast.kind === "loading" ? <RefreshCw size={18} className="animate-spin" /> : toast.kind === "success" ? <Check size={18} /> : <X size={18} />;
+  return (
+    <div className={cn("action-toast", `action-toast-${toast.kind}`)} role={toast.kind === "error" ? "alert" : "status"} aria-live="polite">
+      <div className="action-toast-icon">{icon}</div>
+      <div className="action-toast-copy"><strong>{toast.title}</strong><span>{toast.message}</span></div>
+      {toast.kind !== "loading" ? <button type="button" className="action-toast-close" onClick={onClose} aria-label="Tutup notifikasi"><X size={15} /></button> : null}
+    </div>
+  );
 }
 
 function SettingsPage() {

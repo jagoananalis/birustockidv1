@@ -46,6 +46,9 @@ export const Route = createFileRoute(
               databaseSource: "unknown",
               connectionStatus: "error",
               analisisCount: null,
+              ...(process.env.NODE_ENV !== "production"
+                ? { error: error instanceof Error ? error.message : String(error) }
+                : {}),
             },
             {
               status: 503,
